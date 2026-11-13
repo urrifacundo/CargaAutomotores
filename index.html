@@ -116,6 +116,22 @@ mark.p{background:var(--mark2);color:var(--ink)}
 .coordrow .btn{text-decoration:none;color:var(--ink);white-space:nowrap}
 .cst{font-style:normal;font-weight:700;text-transform:none;letter-spacing:0}.cst-ok,.cst-operador{color:var(--hal)}.cst-corregida{color:var(--inm)}.cst-falta,.cst-invalida{color:var(--sus)}
 .c-warn{background:var(--sus-bg);color:var(--sus);border:0;cursor:pointer}
+.sugbox{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;border-radius:8px;padding:10px 12px;border:1px solid var(--line);background:var(--soft)}
+.sugbox .sg-l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sugbox .sg-v{font-size:18px}
+.sugbox .sg-why{flex-basis:100%;font-size:13px;color:var(--muted)}
+.sugbox.sg-Sustraido{border-color:var(--sus);background:var(--sus-bg)}.sugbox.sg-Sustraido .sg-v{color:var(--sus)}
+.sugbox.sg-Inmediato{border-color:var(--inm);background:var(--inm-bg)}.sugbox.sg-Inmediato .sg-v{color:var(--inm)}
+.sugbox.sg-Hallado{border-color:var(--hal);background:var(--hal-bg)}.sugbox.sg-Hallado .sg-v{color:var(--hal)}
+.sugbox.sg-No .sg-v{color:var(--no)}
+.conf{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;background:var(--panel);border:1px solid var(--line)}
+.conf-alta{color:var(--hal)}.conf-media{color:var(--inm)}.conf-baja{color:var(--sus)}
+.cbtn small{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.warn{border:1.5px solid var(--sus);background:var(--sus-bg);color:var(--ink);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.warn b{color:var(--sus)}
+.warn-b{display:flex;gap:8px;flex-wrap:wrap}
+.sugtag{font-size:10.5px;font-weight:700;border-radius:4px;padding:0 5px;background:var(--soft)}
+.sg-Sustraido.sugtag{color:var(--sus);background:var(--sus-bg)}.sg-Inmediato.sugtag{color:var(--inm);background:var(--inm-bg)}.sg-Hallado.sugtag{color:var(--hal);background:var(--hal-bg)}.sg-No.sugtag{color:var(--no);background:var(--no-bg)}.sg-dif.sugtag{color:var(--sus);background:var(--sus-bg)}
 .sample-tag{background:var(--inm-bg);color:var(--inm);font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;text-transform:uppercase;letter-spacing:.06em}
 body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radius:12px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px);z-index:20}
@@ -154,7 +170,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
       <div class="tabs" role="tablist" id="tabs"></div>
       <div class="filters">
         <input id="q" type="search" placeholder="Buscar patente, partido, id…">
-        <select id="f-estado"><option value="">Todos los estados</option><option value="pend">Pendientes</option><option value="Sustraido">Sustraído</option><option value="Inmediato">Inmediato</option><option value="Hallado">Hallado</option><option value="No">No corresponde</option><option value="sincoord">Sin coordenada válida</option></select>
+        <select id="f-estado"><option value="">Todos los estados</option><option value="pend">Pendientes</option><option value="Sustraido">Sustraído</option><option value="Inmediato">Inmediato</option><option value="Hallado">Hallado</option><option value="No">No corresponde</option><option value="sincoord">Sin coordenada válida</option><option value="dif">Distinta a la sugerencia</option></select>
         <select id="f-frase"><option value="">Todas las frases</option></select>
       </div>
       <div class="list" id="list"></div>
@@ -670,14 +686,22 @@ function grupo(a){
   if (/ARTICULOS|AUTOPARTES|PATENTES/.test(a.frase)) return 'otros';
   return 'autos';
 }
+// Sugerencia calibrada contra el HERMES del 1-12/11/2026 (1.112 autos clasificados a mano)
 function sugerencia(a){
-  const f=a.frase;
+  const f=a.frase, ant=a.antiguedad;
+  const S_=(c,conf,why)=>({c,conf,why});
   if (a.revisar) return null;
-  if (a.vehiculo==='MOTO') return 'No';
-  if (/ARTICULOS|AUTOPARTES|PATENTES/.test(f)) return 'No';
-  if (/RECUPERAD[OA] TRAS EL HECHO/.test(f)) return 'Inmediato';
-  if (/^HALLAZGO|^ENCUBRIMIENTO|NUMERACION/.test(f)) return 'Hallado';
-  if (/^SUSTRAJERON|^ROBO|^TENTATIVA/.test(f)) return 'Sustraido';
+  if (a.vehiculo==='MOTO') return S_('No', a.confianza==='ALTA'?'alta':'media','Es una moto: HERMES de automotores no la lleva');
+  if (/ARTICULOS/.test(f)) return S_('No','media','Se llevaron objetos del interior, no el vehículo');
+  if (/AUTOPARTES|PATENTES/.test(f)) return S_('No','media','Se llevaron partes del vehículo, no el vehículo');
+  if (/RECUPERAD[OA] TRAS EL HECHO/.test(f)) return S_('Inmediato','baja','Robo del mismo día y recupero en el acta. Ojo: la mitad de estos casos terminaron como Hallado');
+  if (/^ENCUBRIMIENTO/.test(f)) return S_('Hallado','alta','Encubrimiento con un auto que ya tenía pedido de secuestro'+(ant&&ant!=='SIN DATO'?' ('+ant.toLowerCase()+')':''));
+  if (/^HALLAZGO .*PREVIAMENTE/.test(f)) return S_('Hallado', ant==='MISMO DIA'?'media':'alta','Al cursarlo tenía pedido de secuestro'+(ant&&ant!=='SIN DATO'?' ('+ant.toLowerCase()+')':''));
+  if (/^HALLAZGO .*ABANDONAD/.test(f)) return S_('Hallado','alta','Auto encontrado abandonado');
+  if (/NUMERACION/.test(f)) return S_('Hallado','media','Auto con numeración adulterada');
+  if (/^SUSTRAJERON|^ROBO|^TENTATIVA/.test(f)) return a.recupero==='SI'
+      ? S_('Sustraido','media','Robo o hurto del auto. El relato menciona que apareció: puede ser Inmediato')
+      : S_('Sustraido','alta','Robo o hurto del auto');
   return null;
 }
 
@@ -740,7 +764,7 @@ function buildCases(rows, onProgress, done){
     while(i<N && performance.now()-t0<40){
       const r=rows[i++];
       let a=null; try{ a=Motor.analizar(r); }catch(e){ a=null; }
-      if(a){ out.push({ id:String(r.delito_id), row:r, a, g:grupo(a), sug:sugerencia(a) }); }
+      if(a){ const sg=sugerencia(a); out.push({ id:String(r.delito_id), row:r, a, g:grupo(a), sug:sg?sg.c:null, sugInfo:sg }); }
     }
     onProgress(i,N);
     if(i<N) setTimeout(step,0); else done(out);
@@ -781,13 +805,15 @@ document.addEventListener('drop',(ev)=>{ ev.preventDefault(); document.body.clas
 
 // ---------- filtros ----------
 function inParte(c){ if(S.parte==='0') return true; return (c.k%2)===(S.parte==='1'?0:1); }
+function distinta(c){ const d=S.dec[c.id]; return !!(d&&d.cond&&c.sug&&d.cond!==c.sug); }
+function pendDif(c){ const d=S.dec[c.id]; return distinta(c)&&!d.okDif; }
 function estado(c){ const d=S.dec[c.id]; return d&&d.cond? d.cond : 'pend'; }
 function visible(){
   const q=$('#q').value.trim().toLowerCase(), fe=$('#f-estado').value, ff=$('#f-frase').value;
   return S.cases.filter(c=>{
     if(!inParte(c)) return false;
     if(S.tab!=='todo' && c.g!==S.tab) return false;
-    if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe && estado(c)!==fe) return false;
+    if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe==='dif'){ if(!distinta(c)) return false; } else if(fe && estado(c)!==fe) return false;
     if(ff && c.a.frase!==ff) return false;
     if(q){ const d=dat(c); const h=(c.id+' '+d.patente+' '+(c.row.partido_hecho||'')+' '+(c.row.localidad_hecho||'')+' '+(c.row.nro_registro||'')+' '+d.marca+' '+d.modelo).toLowerCase(); if(!h.includes(q)) return false; }
     return true;
@@ -801,7 +827,8 @@ function renderStats(){
   base.forEach(c=>cnt[estado(c)]++);
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
   const sinC=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && !coords(c);}).length;
-  $('#stats').innerHTML=(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes · ${autosPend} autos</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
+  const pdif=base.filter(pendDif).length, ndif=base.filter(distinta).length;
+  $('#stats').innerHTML=(pdif?`<button type="button" class="chip c-warn" id="b-pdif">${pdif} cambios sin confirmar</button>`:'')+(ndif?`<button type="button" class="chip c-pend" id="b-dif">${ndif} distintas a la sugerencia</button>`:'')+(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes · ${autosPend} autos</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
 }
 function renderTabs(){
   const base=S.cases.filter(inParte);
@@ -812,7 +839,7 @@ function renderList(){
   if(!v.length){ L.innerHTML='<div class="empty">No hay denuncias con estos filtros.</div>'; return; }
   const max=600; const part=v.slice(0,max);
   L.innerHTML=part.map(c=>{ const e=estado(c), d=dat(c);
-    return `<button type="button" class="item s-${e}" data-id="${esc(c.id)}" aria-current="${S.cur===c.id}"><span class="stripe"></span><span style="min-width:0"><span class="t">${esc(c.a.frase)}</span><span class="m">${esc(c.id)} · ${esc(c.row.partido_hecho||'')} · ${esc(fDate(c.row.fecha_inicio_hecho||c.row.fecha_carga))}</span></span><span>${d.patente?`<span class="mini-plate">${esc(d.patente)}</span>`:''}</span></button>`; }).join('') + (v.length>max?`<div class="empty">Se muestran ${max} de ${v.length}. Usá la búsqueda o los filtros para ver el resto.</div>`:'');
+    return `<button type="button" class="item s-${e}" data-id="${esc(c.id)}" aria-current="${S.cur===c.id}"><span class="stripe"></span><span style="min-width:0"><span class="t">${esc(c.a.frase)}</span><span class="m">${e==='pend'&&c.sug?`<span class="sugtag sg-${c.sug}">sug. ${esc(LBL[c.sug])}</span> `:''}${distinta(c)?`<span class="sugtag sg-dif">${pendDif(c)?'⚠ sin confirmar':'cambió la sugerencia'}</span> `:''}${esc(c.id)} · ${esc(c.row.partido_hecho||'')} · ${esc(fDate(c.row.fecha_inicio_hecho||c.row.fecha_carga))}</span></span><span>${d.patente?`<span class="mini-plate">${esc(d.patente)}</span>`:''}</span></button>`; }).join('') + (v.length>max?`<div class="empty">Se muestran ${max} de ${v.length}. Usá la búsqueda o los filtros para ver el resto.</div>`:'');
 }
 function hiText(orig, a){
   // mapea el texto normalizado al original para resaltar sin perder acentos
@@ -854,8 +881,12 @@ function renderDetail(){
   </div>
   <div class="sect">
     <h2>Condición para HERMES</h2>
-    <div class="cond" role="group" aria-label="Condición">${CONDS.map(([k,l,key])=>`<button type="button" class="cbtn${c.sug===k&&!dec.cond?' sug':''}" data-c="${k}" aria-pressed="${dec.cond===k}">${l}<kbd>${key}</kbd></button>`).join('')}</div>
-    <div class="sugline">${c.sug?`Sugerencia: <b>${LBL[c.sug]}</b>${dec.cond?'':' (sin confirmar)'} · `:''}${esc(a.porque)}</div>
+    ${c.sugInfo?`<div class="sugbox sg-${c.sug}"><span class="sg-l">Sugerencia de la app</span><b class="sg-v">${esc(LBL[c.sug])}</b><span class="conf conf-${c.sugInfo.conf}">confianza ${c.sugInfo.conf}</span><span class="sg-why">${esc(c.sugInfo.why)}</span></div>`
+      :`<div class="sugbox sg-none"><span class="sg-l">Sin sugerencia</span><span class="sg-why">El motor no encontró el robo: leé el relato y decidí.</span></div>`}
+    <div class="cond" role="group" aria-label="Condición">${CONDS.map(([k,l,key])=>`<button type="button" class="cbtn${c.sug===k?' sug':''}" data-c="${k}" aria-pressed="${dec.cond===k}">${l}<kbd>${key}</kbd>${c.sug===k?'<small>sugerida</small>':''}</button>`).join('')}</div>
+    ${pendDif(c)?`<div class="warn" role="alert"><span><b>¿Seguro que es ${esc(LBL[dec.cond])}?</b> La app sugirió <b>${esc(LBL[c.sug])}</b>: ${esc(c.sugInfo.why)}.</span><span class="warn-b"><button type="button" class="btn primary" id="b-okdif">Sí, es ${esc(LBL[dec.cond])}</button><button type="button" class="btn" id="b-volver">Volver a ${esc(LBL[c.sug])}</button></span><span class="help">También podés apretar ${esc(CONDS.find(x=>x[0]===dec.cond)[2])} otra vez para confirmar.</span></div>`:''}
+    ${distinta(c)&&!pendDif(c)?`<div class="sugline">Elegiste <b>${esc(LBL[dec.cond])}</b> en lugar de la sugerencia (${esc(LBL[c.sug])}). Queda lo que elegiste vos.</div>`:''}
+    <div class="sugline">${esc(a.porque)}</div>
   </div>
   <div class="sect">
     <h2>Datos del vehículo</h2>
@@ -898,7 +929,10 @@ function saveFields(){
 }
 function setCond(k){
   const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
-  saveFields(); const dec=S.dec[c.id]; dec.cond=k; dec.op=S.op||dec.op||''; dec.ts=Date.now(); persist();
+  saveFields(); const dec=S.dec[c.id];
+  if(dec.cond===k && pendDif(c)){ dec.okDif=true; }
+  else { dec.cond=k; dec.okDif = !(c.sug && k!==c.sug) ? undefined : false; if(dec.okDif===undefined) delete dec.okDif; }
+  dec.sug=c.sug||''; dec.op=S.op||dec.op||''; dec.ts=Date.now(); persist();
   renderStats(); renderTabs(); renderList(); renderDetail();
 }
 function move(dir){
@@ -909,6 +943,7 @@ function confirmNext(){
   const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
   const dec=S.dec[c.id]||{};
   if(!dec.cond){ if(c.sug){ setCond(c.sug); } else { toast('Elegí la condición antes de seguir (1, 2, 3 o 0).'); return; } }
+  else if(pendDif(c)){ toast('Confirmá el cambio: ¿es '+LBL[dec.cond]+' o volvés a '+LBL[c.sug]+'?'); const b=document.getElementById('b-okdif'); if(b) b.focus(); return; }
   else saveFields();
   const v=visible(); const i=v.findIndex(x=>x.id===S.cur);
   const nxt=v.slice(i+1).find(x=>estado(x)==='pend')||v[i+1];
@@ -921,6 +956,9 @@ document.addEventListener('click',(ev)=>{
   const tb=ev.target.closest('.tab'); if(tb){ saveFields(); S.tab=tb.dataset.tab; renderTabs(); renderList(); selectFirst(); return; }
   const cb=ev.target.closest('.cbtn'); if(cb){ setCond(cb.dataset.c); return; }
   if(ev.target.id==='b-next'){ confirmNext(); return; }
+  if(ev.target.id==='b-okdif'){ const c=S.cases.find(x=>x.id===S.cur); if(c){ const d=S.dec[c.id]; d.okDif=true; d.ts=Date.now(); persist(); renderList(); renderStats(); renderDetail(); } return; }
+  if(ev.target.id==='b-volver'){ const c=S.cases.find(x=>x.id===S.cur); if(c&&c.sug) setCond(c.sug); return; }
+  if(ev.target.id==='b-pdif'||ev.target.id==='b-dif'){ S.tab='todo'; $('#f-estado').value='dif'; renderTabs(); renderList(); selectFirst(); return; }
   if(ev.target.id==='b-sincoord'){ S.tab='todo'; $('#f-estado').value='sincoord'; renderTabs(); renderList(); selectFirst(); return; }
   if(ev.target.id==='b-prev'){ move(-1); return; }
 });
@@ -928,7 +966,7 @@ document.addEventListener('change',(ev)=>{ if(ev.target.closest('#detail') && ev
 document.addEventListener('paste',(ev)=>{ if(ev.target && ev.target.id==='v-coord'){ setTimeout(()=>{ saveFields(); renderStats(); renderDetail(); const el=document.getElementById('v-coord'); if(el) el.focus(); },0); } });
 document.addEventListener('keydown',(ev)=>{
   const inField=/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
-  if(ev.key==='Enter' && (inField? document.activeElement.closest('#detail') : true)){ if(document.activeElement && document.activeElement.classList.contains('item')) return; ev.preventDefault(); confirmNext(); return; }
+  if(ev.key==='Enter' && (inField? document.activeElement.closest('#detail') : true)){ const ae=document.activeElement; if(ae && (ae.classList.contains('item') || ae.id==='b-okdif' || ae.id==='b-volver')) return; ev.preventDefault(); confirmNext(); return; }
   if(inField) return;
   const m={'1':'Sustraido','2':'Inmediato','3':'Hallado','0':'No'}[ev.key];
   if(m){ ev.preventDefault(); setCond(m); return; }
@@ -961,6 +999,7 @@ $('#b-hermes').addEventListener('click', async ()=>{
     fecha_inicio_hecho:fDate(r.fecha_inicio_hecho||r.fecha_carga), hora_inicio_hecho:fTime(r.hora_inicio_hecho), analisis_coordenadas:coords(c),
     relato:String(r.relato||''), analisis_caratula:r.calificaciones||'', analisis_modalidad:'', jurisdiccion:r.dependencia||'' }; });
   rows.sort((x,y)=>(x.fecha_inicio_hecho+x.hora_inicio_hecho).localeCompare(y.fecha_inicio_hecho+y.hora_inicio_hecho));
+  const pend=S.cases.filter(pendDif).length; if(pend){ toast(pend+' cambios contra la sugerencia siguen sin confirmar. Revisalos con el aviso de arriba antes de descargar.'); return; }
   const sinPat=rows.filter(r=>!r.patente).length; const sinCo=rows.filter(r=>!r.analisis_coordenadas).length;
   const ws=XLSX.utils.json_to_sheet(rows,{header:HERMES_COLS});
   ws['!cols']=HERMES_COLS.map(()=>({wch:13}));
