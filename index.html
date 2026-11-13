@@ -1141,7 +1141,7 @@ async function save(filename,data){
 }
 function baseName(){ return (S.file||'Ejemplo').replace(/\.xlsx?$/i,''); }
 // ---------- clave para descargar HERMES (se guarda solo el hash) ----------
-const HERMES_HASH='5fb913269a589aebc259b0ee3067467355ed46b7c4dba222452b777bdbb4d1e9';
+const HERMES_HASH='2fe6f0c002084e8caae59299a60d40e92698c7cc69e48dfe6fd5fd5bdc4e242b';
 async function sha256(t){ const b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 let hermesOk=false;
 $('#b-hermes').addEventListener('click', ()=>{ if(hermesOk){ descargarHermes(); return; } $('#dlg-clave').hidden=false; $('#i-clave').value=''; $('#clave-err').hidden=true; $('#i-clave').focus(); });
