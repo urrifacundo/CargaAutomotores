@@ -183,7 +183,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
       <div class="tabs" role="tablist" id="tabs"></div>
       <div class="filters">
         <input id="q" type="search" placeholder="Buscar patente, partido, id…">
-        <select id="f-estado"><option value="">Todos los estados</option><option value="pend">Pendientes</option><option value="Sustraido">Sustraído</option><option value="Inmediato">Inmediato</option><option value="Hallado">Hallado</option><option value="No">No corresponde</option><option value="sincoord">Sin coordenada válida</option><option value="dif">Distinta a la sugerencia</option></select>
+        <select id="f-estado"><option value="">Todos los estados</option><option value="pend">Pendientes</option><option value="Sustraido">Sustraído</option><option value="Inmediato">Inmediato</option><option value="Hallado">Hallado</option><option value="No">No corresponde</option><option value="sincoord">Sin coordenada válida</option><option value="fecha">Fecha dudosa</option><option value="dif">Distinta a la sugerencia</option></select>
         <select id="f-frase"><option value="">Todas las frases</option></select>
       </div>
       <div class="list" id="list"></div>
@@ -824,6 +824,35 @@ function coordOf(c){
   return c.coord || (c.coord=checkCoord(c.row.latitud,c.row.longitud));
 }
 function coords(c){ return coordOf(c).txt; }
+// ---------- fecha del hecho ----------
+const dnum=(iso)=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m? Date.UTC(+m[1],+m[2]-1,+m[3])/86400000 : null; };
+const isoOf=(n)=>{ const d=new Date(n*86400000); return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()); };
+const fmtAR=(iso)=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m? m[3]+'/'+m[2]+'/'+m[1] : iso; };
+function checkFecha(c){
+  if(c.fch) return c.fch;
+  const r=c.row, fi=fDate(r.fecha_inicio_hecho), fc=fDate(r.fecha_carga);
+  const ni=dnum(fi), nc=dnum(fc); const sug=[];
+  let estado='ok', nota='';
+  if(ni==null){ estado='falta'; nota='El crudo no trae fecha del hecho: se usa la fecha de carga'; }
+  else if(nc!=null){
+    const dif=nc-ni, yi=+fi.slice(0,4);
+    if(yi<2000){ estado='dudosa'; nota='Año '+yi+': parece un error de carga'; }
+    else if(dif<0){ estado='dudosa'; nota='Es posterior a la fecha de carga ('+fmtAR(fc)+')'; }
+    else if(dif>30){ estado='dudosa'; nota=dif>365? 'Es '+Math.floor(dif/365)+' año(s) anterior a la carga ('+fmtAR(fc)+')' : 'Es '+dif+' días anterior a la carga ('+fmtAR(fc)+')'; }
+    if(estado==='dudosa'){
+      // mismo dia con otro mes o anio: tipeo probable
+      const di=+fi.slice(8,10), dc=+fc.slice(8,10);
+      if(Math.abs(di-dc)<=1){ const cand=fc.slice(0,8)+pad(di); if(dnum(cand)!=null && dnum(cand)<=nc) sug.push({f:cand, why:'mismo día, con el mes y año de la carga'}); }
+      const t=Motor.norm(r.relato);
+      if(/en el dia de la fecha|en la fecha de hoy|en el dia de hoy|en horas de la manana de hoy/.test(t)) sug.push({f:fc, why:'el relato dice "en el día de la fecha"'});
+      if(/(?:en el|el) dia de ayer/.test(t)) sug.push({f:isoOf(nc-1), why:'el relato dice "el día de ayer"'});
+    }
+  }
+  const seen=new Set(); const sg=sug.filter(x=>x.f!==fi && !seen.has(x.f) && seen.add(x.f));
+  return (c.fch={orig:fi, carga:fc, estado, nota, sug:sg, base: fi||fc});
+}
+function fechaOf(c){ const d=S.dec[c.id]; if(d&&d.fecha) return d.fecha; return checkFecha(c).base; }
+function fechaDudosa(c){ const d=S.dec[c.id]; if(d&&d.fecha) return false; return checkFecha(c).estado==='dudosa'; }
 function mapsUrl(r){
   const dir=[r.calle, r.altura?String(r.altura).replace(/\.0$/,''):'', r.entre?'y '+r.entre:'', r.localidad_hecho, r.partido_hecho, 'Buenos Aires'].filter(Boolean).join(' ');
   return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(dir);
@@ -896,7 +925,7 @@ function visible(){
   return S.cases.filter(c=>{
     if(!inParte(c)) return false;
     if(S.tab==='todo' ? c.g==='dup' : c.g!==S.tab) return false;
-    if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe==='dif'){ if(!distinta(c)) return false; } else if(fe && estado(c)!==fe) return false;
+    if(fe==='fecha'){ if(!fechaDudosa(c)) return false; } else if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe==='dif'){ if(!distinta(c)) return false; } else if(fe && estado(c)!==fe) return false;
     if(ff && c.a.frase!==ff) return false;
     if(q){ const d=dat(c); const h=(c.id+' '+d.patente+' '+(c.row.partido_hecho||'')+' '+(c.row.localidad_hecho||'')+' '+(c.row.nro_registro||'')+' '+d.marca+' '+d.modelo).toLowerCase(); if(!h.includes(q)) return false; }
     return true;
@@ -913,9 +942,10 @@ function renderStats(){ updBorrar(); updRecuperar();
   const base=S.cases.filter(c=>inParte(c)&&c.g!=='dup'); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
   base.forEach(c=>{ const e=estado(c); if(e==='pend' && c.g!=='autos' && c.g!=='revisar') return; cnt[e]++; });
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
+  const fdud=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && fechaDudosa(c);}).length;
   const sinC=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && !coords(c);}).length;
   const pdif=base.filter(pendDif).length, ndif=base.filter(distinta).length;
-  $('#stats').innerHTML=(pdif?`<button type="button" class="chip c-warn" id="b-pdif">${pdif} cambios sin confirmar</button>`:'')+(ndif?`<button type="button" class="chip c-pend" id="b-dif">${ndif} distintas a la sugerencia</button>`:'')+(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes (Autos y A revisar)</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
+  $('#stats').innerHTML=(pdif?`<button type="button" class="chip c-warn" id="b-pdif">${pdif} cambios sin confirmar</button>`:'')+(ndif?`<button type="button" class="chip c-pend" id="b-dif">${ndif} distintas a la sugerencia</button>`:'')+(fdud?`<button type="button" class="chip c-warn" id="b-fdud">${fdud} fecha dudosa</button>`:'')+(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes (Autos y A revisar)</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
 }
 function renderTabs(){
   const base=S.cases.filter(inParte);
@@ -958,11 +988,12 @@ function renderDetail(){
   const D=$('#detail'); const c=S.cases.find(x=>x.id===S.cur);
   if(!c){ D.innerHTML='<div class="empty">Elegí una denuncia de la lista.</div>'; return; }
   const a=c.a, r=c.row, d=dat(c), e=estado(c), dec=S.dec[c.id]||{}; const co=coordOf(c);
+  const ff=checkFecha(c); const fe={ val: fechaOf(c), carga: ff.carga, sug: dec.fecha? [] : ff.sug, est: dec.fecha? 'operador' : ff.estado, nota: dec.fecha? 'original del crudo: '+(ff.orig?fmtAR(ff.orig):'vacía') : ff.nota };
   const sen=a.senales.map(([k,v,x])=>`<span><b>${esc(k)}</b>: ${esc(v)}${x?` (${esc(x)})`:''}</span>`).join(' · ');
   D.innerHTML=`
   <div class="dhead">
     <div class="row">${S.sample?'<span class="sample-tag">Ejemplo</span>':''}<span class="frase">${esc(a.frase)}</span></div>
-    <div class="meta"><span>Id <b>${esc(c.id)}</b></span><span>Registro <b>${esc(r.nro_registro||'')}</b></span><span><b>${esc(fDate(r.fecha_inicio_hecho||r.fecha_carga))}</b> ${esc(fTime(r.hora_inicio_hecho))}</span><span><b>${esc(r.partido_hecho||'')}</b> · ${esc(r.localidad_hecho||'')}</span><span>${esc(r.dependencia||'')}</span></div>
+    <div class="meta"><span>Id <b>${esc(c.id)}</b></span><span>Registro <b>${esc(r.nro_registro||'')}</b></span><span><b>${esc(fmtAR(fechaOf(c)))}</b> ${esc(fTime(r.hora_inicio_hecho))}${fechaDudosa(c)?' <span class="sugtag sg-dif">fecha dudosa</span>':''}</span><span><b>${esc(r.partido_hecho||'')}</b> · ${esc(r.localidad_hecho||'')}</span><span>${esc(r.dependencia||'')}</span></div>
     <div class="meta"><span>${esc(r.calificaciones||'')}</span></div>
     <div class="meta"><span>Vehículo <b>${esc(a.vehiculo)}</b> (confianza ${esc(a.confianza)})</span>${a.antiguedad?`<span>Sustracción previa <b>${esc(a.antiguedad)}</b>${a.fechaPrevia?' · '+esc(a.fechaPrevia):''}</span>`:''}${a.recupero?`<span>Menciona recupero <b>${esc(a.recupero)}</b></span>`:''}</div>
   </div>
@@ -986,6 +1017,9 @@ function renderDetail(){
       <label class="field" for="v-chasis"><span>Chasis</span><input id="v-chasis" class="mono" value="${esc(d.chasis)}" autocomplete="off"></label>
       <label class="field" for="v-motor"><span>Motor</span><input id="v-motor" class="mono" value="${esc(d.motor)}" autocomplete="off"></label>
       <label class="field" for="v-obs"><span>Observación</span><input id="v-obs" value="${esc(d.obs)}" autocomplete="off"></label>
+      <label class="field wide" for="v-fecha"><span>Fecha del hecho · <em class="cst cst-${fe.est}">${esc({ok:'del crudo',falta:'falta en el crudo',dudosa:'dudosa',operador:'corregida a mano'}[fe.est])}</em>${fe.nota?' · '+esc(fe.nota):''}</span>
+        <span class="coordrow"><input id="v-fecha" type="date" value="${esc(fe.val)}" min="2000-01-01" max="${esc(fe.carga||'')}" style="flex:0 1 190px">${fe.sug.map(x=>`<button type="button" class="btn" data-fsug="${esc(x.f)}">Usar ${esc(fmtAR(x.f))}</button>`).join('')}</span>
+        ${fe.sug.length?`<span class="help">${fe.sug.map(x=>esc(fmtAR(x.f))+': '+esc(x.why)).join(' · ')}. Si la fecha es correcta (denuncia tardía), dejala como está y escribí el motivo en Observación.</span>`:(fe.est==='dudosa'?'<span class="help">Revisá la fecha en el relato. Si es correcta (denuncia tardía), dejala y aclaralo en Observación.</span>':'')}</label>
       <label class="field wide" for="v-coord"><span>Coordenadas (lat, lon) · <em class="cst cst-${co.estado}">${esc({ok:'del crudo',corregida:'corregida',operador:'cargada a mano',falta:'falta',invalida:'inválida'}[co.estado])}</em>${co.nota?' · '+esc(co.nota):''}</span>
         <span class="coordrow"><input id="v-coord" style="font-family:var(--f-mono)" value="${esc(co.txt)}" placeholder="Pegá acá: -34.6037, -58.3816 o el link de Google Maps" autocomplete="off"><a class="btn" href="${esc(mapsUrl(r))}" target="_blank" rel="noopener">Buscar dirección en Maps</a></span>
         <span class="help">Dirección del crudo: ${esc([r.calle,r.altura?String(r.altura).replace(/\.0$/,''):'',r.entre?'e/ '+r.entre:'',r.localidad_hecho].filter(Boolean).join(' ')||'sin dirección')}. En Maps: clic derecho sobre el punto, clic en los números para copiarlos, y pegalos acá.</span></label>
@@ -1011,6 +1045,8 @@ function saveFields(){
   const dec=S.dec[c.id]||{};
   const p=g('v-patente'); if(p!=null) dec.patente=p.toUpperCase().replace(/[^A-Z0-9]/g,'');
   ['marca','modelo','chasis','motor','obs'].forEach(k=>{ const v=g('v-'+k); if(v!=null) dec[k]= k==='marca'||k==='obs'? v.trim() : v.trim().toUpperCase(); });
+  const fv=g('v-fecha');
+  if(fv!=null){ const base=checkFecha(c).base; if(fv && fv!==base && /^\d{4}-\d{2}-\d{2}$/.test(fv)) dec.fecha=fv; else if(!fv || fv===base) delete dec.fecha; }
   const cv=g('v-coord');
   if(cv!=null){ const base=checkCoord(c.row.latitud,c.row.longitud).txt; const t=cv.trim();
     if(!t){ delete dec.coord; } else if(t!==base){ const pc=parseCoordInput(t); if(pc){ dec.coord=pc.txt; } else { toast('No entendí la coordenada. Pegá algo como -34.6037, -58.3816.'); } } else { delete dec.coord; } }
@@ -1050,10 +1086,12 @@ document.addEventListener('click',(ev)=>{
   if(ev.target.id==='b-okdif'){ const c=S.cases.find(x=>x.id===S.cur); if(c){ const d=S.dec[c.id]; d.okDif=true; d.ts=Date.now(); persist(); renderList(); renderStats(); renderDetail(); } return; }
   if(ev.target.id==='b-volver'){ const c=S.cases.find(x=>x.id===S.cur); if(c&&c.sug) setCond(c.sug); return; }
   if(ev.target.id==='b-pdif'||ev.target.id==='b-dif'){ S.tab='todo'; $('#f-estado').value='dif'; renderTabs(); renderList(); selectFirst(); return; }
+  if(ev.target.id==='b-fdud'){ S.tab='todo'; $('#f-estado').value='fecha'; renderTabs(); renderList(); selectFirst(); return; }
+  const fs=ev.target.closest('[data-fsug]'); if(fs){ const el=document.getElementById('v-fecha'); if(el){ el.value=fs.dataset.fsug; saveFields(); renderStats(); renderList(); renderDetail(); } return; }
   if(ev.target.id==='b-sincoord'){ S.tab='todo'; $('#f-estado').value='sincoord'; renderTabs(); renderList(); selectFirst(); return; }
   if(ev.target.id==='b-prev'){ move(-1); return; }
 });
-document.addEventListener('change',(ev)=>{ if(ev.target.closest('#detail') && ev.target.id.startsWith('v-')) { saveFields(); renderList(); if(ev.target.id==='v-coord'){ renderStats(); renderDetail(); } } });
+document.addEventListener('change',(ev)=>{ if(ev.target.closest('#detail') && ev.target.id.startsWith('v-')) { saveFields(); renderList(); if(ev.target.id==='v-coord'||ev.target.id==='v-fecha'){ renderStats(); renderDetail(); } } });
 document.addEventListener('paste',(ev)=>{ if(ev.target && ev.target.id==='v-coord'){ setTimeout(()=>{ saveFields(); renderStats(); renderDetail(); const el=document.getElementById('v-coord'); if(el) el.focus(); },0); } });
 document.addEventListener('keydown',(ev)=>{
   const inField=/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
@@ -1109,17 +1147,17 @@ $('#b-hermes').addEventListener('click', async ()=>{
   const rows=sel.map(c=>{ const r=c.row, d=dat(c); return {
     patente:d.patente||'', nro_registro:r.nro_registro||'', partido_hecho:r.partido_hecho||'', localidad_hecho:r.localidad_hecho||'',
     condicion:estado(c), marca:d.marca||'', modelo:(d.modelo||'').toUpperCase(), chasis:d.chasis||'', motor:d.motor||'',
-    fecha_inicio_hecho:fDate(r.fecha_inicio_hecho||r.fecha_carga), hora_inicio_hecho:fTime(r.hora_inicio_hecho), analisis_coordenadas:coords(c),
+    fecha_inicio_hecho:fechaOf(c), hora_inicio_hecho:fTime(r.hora_inicio_hecho), analisis_coordenadas:coords(c),
     relato:String(r.relato||''), analisis_caratula:r.calificaciones||'', analisis_modalidad:'', jurisdiccion:r.dependencia||'' }; });
   rows.sort((x,y)=>(x.fecha_inicio_hecho+x.hora_inicio_hecho).localeCompare(y.fecha_inicio_hecho+y.hora_inicio_hecho));
   const pend=S.cases.filter(pendDif).length; if(pend){ toast(pend+' cambios contra la sugerencia siguen sin confirmar. Revisalos con el aviso de arriba antes de descargar.'); return; }
-  const sinPat=rows.filter(r=>!r.patente).length; const sinCo=rows.filter(r=>!r.analisis_coordenadas).length;
+  const sinPat=rows.filter(r=>!r.patente).length; const fDud=sel.filter(fechaDudosa).length; const sinCo=rows.filter(r=>!r.analisis_coordenadas).length;
   const ws=XLSX.utils.json_to_sheet(rows,{header:HERMES_COLS});
   ws['!cols']=HERMES_COLS.map(()=>({wch:13}));
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Autos');
   const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   const ok=await save(baseName()+' - HERMES.xlsx', new Blob([out]));
-  if(ok && (sinPat||sinCo)) setTimeout(()=>toast(rows.length+' autos exportados'+(sinPat?'; '+sinPat+' sin patente':'')+(sinCo?'; '+sinCo+' sin coordenada':'')+'.'),3300);
+  if(ok && (sinPat||sinCo||fDud)) setTimeout(()=>toast(rows.length+' autos exportados'+(sinPat?'; '+sinPat+' sin patente':'')+(sinCo?'; '+sinCo+' sin coordenada':'')+(fDud?'; '+fDud+' con fecha dudosa':'')+'.'),3300);
 });
 $('#b-avance').addEventListener('click', async ()=>{
   saveFields();
