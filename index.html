@@ -132,6 +132,8 @@ mark.p{background:var(--mark2);color:var(--ink)}
 .warn-b{display:flex;gap:8px;flex-wrap:wrap}
 .sugtag{font-size:10.5px;font-weight:700;border-radius:4px;padding:0 5px;background:var(--soft)}
 .sg-Sustraido.sugtag{color:var(--sus);background:var(--sus-bg)}.sg-Inmediato.sugtag{color:var(--inm);background:var(--inm-bg)}.sg-Hallado.sugtag{color:var(--hal);background:var(--hal-bg)}.sg-No.sugtag{color:var(--no);background:var(--no-bg)}.sg-dif.sugtag{color:var(--sus);background:var(--sus-bg)}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
+.item.s-dup .stripe{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,transparent 3px,transparent 6px)}
 .sample-tag{background:var(--inm-bg);color:var(--inm);font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;text-transform:uppercase;letter-spacing:.06em}
 body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radius:12px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px);z-index:20}
@@ -653,7 +655,42 @@ function analizar(row) {
     datos: vehiculoDatos(r.t, tp.tipo, anchor),
   };
 }
-const API = { canonBrand, REVISAR, candidato, norm, classify, tipo, fixFrase, keySpan, sentence, vehiculoDatos, analizar };
+
+// ---- mismo hecho cargado dos veces (regla V17.4) ----
+// Mismo prefijo de nro_registro (dependencia), fechas a menos de 3 dias, nunca patentes distintas, y
+// (relato identico o similitud >= 0.9) o (misma patente y similitud >= 0.5). Similitud = Jaccard de palabras de 5+ letras.
+function palabras(t) { return new Set((norm(t).match(/[a-z]{5,}/g) || [])); }
+function jaccard(a, b) { let i = 0; for (const x of a) if (b.has(x)) i++; const u = a.size + b.size - i; return u ? i / u : 0; }
+function duplicados(cases) {
+  // cases: [{id, row, a, g}] ; devuelve Map idDuplicado -> {de: idConservado, sim}
+  const pref = (r) => String(r.nro_registro || '').split('-')[0];
+  const day = (r) => { const d = parseRef(r.fecha_inicio_hecho) ?? parseRef(r.fecha_carga); return d == null ? null : d / 86400000; };
+  const prio = (c) => ({ autos: 0, revisar: 1, otros: 2, motos: 3 }[c.g] ?? 4);
+  const by = new Map();
+  for (const c of cases) { const p = pref(c.row); if (!p) continue; if (!by.has(p)) by.set(p, []); by.get(p).push(c); }
+  const dup = new Map();
+  for (const list of by.values()) {
+    if (list.length < 2) continue;
+    list.sort((x, y) => prio(x) - prio(y) || String(x.row.fecha_carga || '').concat(x.row.hora_carga || '').localeCompare(String(y.row.fecha_carga || '').concat(y.row.hora_carga || '')) || (Number(x.id) - Number(y.id)));
+    const W = new Map(list.map(c => [c.id, palabras(c.row.relato)]));
+    for (let i = 0; i < list.length; i++) {
+      const A = list[i]; if (dup.has(A.id)) continue;
+      for (let j = i + 1; j < list.length; j++) {
+        const B = list[j]; if (dup.has(B.id)) continue;
+        const da = day(A.row), db = day(B.row);
+        if (da != null && db != null && Math.abs(da - db) >= 3) continue;
+        const pa = (A.a.datos && A.a.datos.dominio) || '', pb = (B.a.datos && B.a.datos.dominio) || '';
+        if (pa && pb && pa !== pb) continue;
+        const ident = norm(A.row.relato).trim() === norm(B.row.relato).trim();
+        const sim = ident ? 1 : jaccard(W.get(A.id), W.get(B.id));
+        if (ident || sim >= 0.9 || (pa && pa === pb && sim >= 0.5)) dup.set(B.id, { de: A.id, sim: Math.round(sim * 100) / 100 });
+      }
+    }
+  }
+  return dup;
+}
+
+const API = { duplicados, canonBrand, REVISAR, candidato, norm, classify, tipo, fixFrase, keySpan, sentence, vehiculoDatos, analizar };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Motor = API;
 })(typeof self !== 'undefined' ? self : this);
 
@@ -665,7 +702,7 @@ const $ = (s) => document.querySelector(s);
 const HERMES_COLS = ['patente','nro_registro','partido_hecho','localidad_hecho','condicion','marca','modelo','chasis','motor','fecha_inicio_hecho','hora_inicio_hecho','analisis_coordenadas','relato','analisis_caratula','analisis_modalidad','jurisdiccion'];
 const CONDS = [['Sustraido','Sustraído','1'],['Inmediato','Inmediato','2'],['Hallado','Hallado','3'],['No','No corresponde','0']];
 const LBL = {Sustraido:'Sustraído',Inmediato:'Inmediato',Hallado:'Hallado',No:'No corresponde'};
-const TABS = [['autos','Autos'],['revisar','A revisar'],['otros','Autopartes y objetos'],['motos','Motos'],['todo','Todo']];
+const TABS = [['autos','Autos'],['revisar','A revisar'],['otros','Autopartes y objetos'],['motos','Motos'],['dup','Duplicados'],['todo','Todo']];
 const S = { file:null, fileKey:'ejemplo', rows:[], cases:[], dec:{}, tab:'autos', cur:null, sample:true, op:'', parte:'0' };
 
 // ---------- storage (solo decisiones, nunca el crudo) ----------
@@ -773,8 +810,13 @@ function buildCases(rows, onProgress, done){
 }
 function setCases(cases){
   cases.sort((x,y)=> (fDate(x.row.fecha_inicio_hecho||x.row.fecha_carga)+fTime(x.row.hora_inicio_hecho)).localeCompare(fDate(y.row.fecha_inicio_hecho||y.row.fecha_carga)+fTime(y.row.hora_inicio_hecho)) || x.id.localeCompare(y.id));
-  cases.forEach((c,k)=>c.k=k);
-  S.cases=cases; restore();
+  // mismo hecho cargado dos veces: se detecta antes de repartir, igual para todos los operadores
+  let dmap=new Map(); try{ dmap=Motor.duplicados(cases); }catch(e){}
+  const main=cases.filter(c=>!dmap.has(c.id)), dups=cases.filter(c=>dmap.has(c.id));
+  main.forEach((c,k)=>{ c.k=k; c.tambien=[]; });
+  const byId=new Map(main.map(c=>[c.id,c]));
+  dups.forEach(c=>{ const d=dmap.get(c.id); const o=byId.get(d.de); c.g='dup'; c.dupDe=d.de; c.dupSim=d.sim; c.k=o?o.k:0; c.sug=null; c.sugInfo=null; if(o) o.tambien.push(c); });
+  S.cases=main.concat(dups); restore();
   const frases=[...new Set(cases.map(c=>c.a.frase))].sort();
   $('#f-frase').innerHTML='<option value="">Todas las frases</option>'+frases.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('');
   S.cur=null; renderAll(); selectFirst();
@@ -807,12 +849,12 @@ document.addEventListener('drop',(ev)=>{ ev.preventDefault(); document.body.clas
 function inParte(c){ if(S.parte==='0') return true; return (c.k%2)===(S.parte==='1'?0:1); }
 function distinta(c){ const d=S.dec[c.id]; return !!(d&&d.cond&&c.sug&&d.cond!==c.sug); }
 function pendDif(c){ const d=S.dec[c.id]; return distinta(c)&&!d.okDif; }
-function estado(c){ const d=S.dec[c.id]; return d&&d.cond? d.cond : 'pend'; }
+function estado(c){ if(c.g==='dup') return 'dup'; const d=S.dec[c.id]; return d&&d.cond? d.cond : 'pend'; }
 function visible(){
   const q=$('#q').value.trim().toLowerCase(), fe=$('#f-estado').value, ff=$('#f-frase').value;
   return S.cases.filter(c=>{
     if(!inParte(c)) return false;
-    if(S.tab!=='todo' && c.g!==S.tab) return false;
+    if(S.tab==='todo' ? c.g==='dup' : c.g!==S.tab) return false;
     if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe==='dif'){ if(!distinta(c)) return false; } else if(fe && estado(c)!==fe) return false;
     if(ff && c.a.frase!==ff) return false;
     if(q){ const d=dat(c); const h=(c.id+' '+d.patente+' '+(c.row.partido_hecho||'')+' '+(c.row.localidad_hecho||'')+' '+(c.row.nro_registro||'')+' '+d.marca+' '+d.modelo).toLowerCase(); if(!h.includes(q)) return false; }
@@ -823,7 +865,7 @@ function dat(c){ const d=S.dec[c.id]||{}; const x=c.a.datos; return { patente: d
 
 // ---------- render ----------
 function renderStats(){
-  const base=S.cases.filter(inParte); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
+  const base=S.cases.filter(c=>inParte(c)&&c.g!=='dup'); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
   base.forEach(c=>cnt[estado(c)]++);
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
   const sinC=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && !coords(c);}).length;
@@ -832,7 +874,7 @@ function renderStats(){
 }
 function renderTabs(){
   const base=S.cases.filter(inParte);
-  $('#tabs').innerHTML=TABS.map(([k,l])=>{ const n=k==='todo'?base.length:base.filter(c=>c.g===k).length; return `<button class="tab" role="tab" type="button" data-tab="${k}" aria-selected="${S.tab===k}">${l}<b>${n}</b></button>`; }).join('');
+  $('#tabs').innerHTML=TABS.map(([k,l])=>{ const n=k==='todo'?base.filter(c=>c.g!=='dup').length:base.filter(c=>c.g===k).length; if(k==='dup'&&!n) return ''; return `<button class="tab" role="tab" type="button" data-tab="${k}" aria-selected="${S.tab===k}">${l}<b>${n}</b></button>`; }).join('');
 }
 function renderList(){
   const v=visible(); const L=$('#list');
@@ -879,7 +921,9 @@ function renderDetail(){
     <div class="meta"><span>${esc(r.calificaciones||'')}</span></div>
     <div class="meta"><span>Vehículo <b>${esc(a.vehiculo)}</b> (confianza ${esc(a.confianza)})</span>${a.antiguedad?`<span>Sustracción previa <b>${esc(a.antiguedad)}</b>${a.fechaPrevia?' · '+esc(a.fechaPrevia):''}</span>`:''}${a.recupero?`<span>Menciona recupero <b>${esc(a.recupero)}</b></span>`:''}</div>
   </div>
-  <div class="sect">
+  ${c.g==='dup'?`<div class="sect"><div class="warn" role="note"><span><b>Duplicado.</b> Es el mismo hecho que el registro <b>${esc((S.cases.find(x=>x.id===c.dupDe)||{row:{}}).row.nro_registro||c.dupDe)}</b> (id ${esc(c.dupDe)}, relato ${Math.round(c.dupSim*100)}% igual). No se carga: se clasifica en ese registro y no sale en HERMES.</span><span class="warn-b"><button type="button" class="btn" data-goto="${esc(c.dupDe)}">Ir al registro que se carga</button></span></div></div>`:''}
+  ${c.tambien&&c.tambien.length?`<div class="sect"><div class="sugline">⚠ Este hecho también está cargado como ${c.tambien.map(d=>`<button type="button" class="linkbtn" data-goto="${esc(d.id)}">${esc(d.row.nro_registro||d.id)}</button>`).join(', ')}. Se clasifica solo acá.</div></div>`:''}
+  ${c.g==='dup'?'':`<div class="sect">
     <h2>Condición para HERMES</h2>
     ${c.sugInfo?`<div class="sugbox sg-${c.sug}"><span class="sg-l">Sugerencia de la app</span><b class="sg-v">${esc(LBL[c.sug])}</b><span class="conf conf-${c.sugInfo.conf}">confianza ${c.sugInfo.conf}</span><span class="sg-why">${esc(c.sugInfo.why)}</span></div>`
       :`<div class="sugbox sg-none"><span class="sg-l">Sin sugerencia</span><span class="sg-why">El motor no encontró el robo: leé el relato y decidí.</span></div>`}
@@ -887,7 +931,7 @@ function renderDetail(){
     ${pendDif(c)?`<div class="warn" role="alert"><span><b>¿Seguro que es ${esc(LBL[dec.cond])}?</b> La app sugirió <b>${esc(LBL[c.sug])}</b>: ${esc(c.sugInfo.why)}.</span><span class="warn-b"><button type="button" class="btn primary" id="b-okdif">Sí, es ${esc(LBL[dec.cond])}</button><button type="button" class="btn" id="b-volver">Volver a ${esc(LBL[c.sug])}</button></span><span class="help">También podés apretar ${esc(CONDS.find(x=>x[0]===dec.cond)[2])} otra vez para confirmar.</span></div>`:''}
     ${distinta(c)&&!pendDif(c)?`<div class="sugline">Elegiste <b>${esc(LBL[dec.cond])}</b> en lugar de la sugerencia (${esc(LBL[c.sug])}). Queda lo que elegiste vos.</div>`:''}
     <div class="sugline">${esc(a.porque)}</div>
-  </div>
+  </div>`}
   <div class="sect">
     <h2>Datos del vehículo</h2>
     <div class="grid">
@@ -928,7 +972,7 @@ function saveFields(){
   dec.ts=Date.now(); S.dec[c.id]=dec; persist();
 }
 function setCond(k){
-  const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
+  const c=S.cases.find(x=>x.id===S.cur); if(!c || c.g==='dup') return;
   saveFields(); const dec=S.dec[c.id];
   if(dec.cond===k && pendDif(c)){ dec.okDif=true; }
   else { dec.cond=k; dec.okDif = !(c.sug && k!==c.sug) ? undefined : false; if(dec.okDif===undefined) delete dec.okDif; }
@@ -942,6 +986,7 @@ function move(dir){
 function confirmNext(){
   const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
   const dec=S.dec[c.id]||{};
+  if(c.g==='dup'){ move(1); return; }
   if(!dec.cond){ if(c.sug){ setCond(c.sug); } else { toast('Elegí la condición antes de seguir (1, 2, 3 o 0).'); return; } }
   else if(pendDif(c)){ toast('Confirmá el cambio: ¿es '+LBL[dec.cond]+' o volvés a '+LBL[c.sug]+'?'); const b=document.getElementById('b-okdif'); if(b) b.focus(); return; }
   else saveFields();
@@ -955,6 +1000,7 @@ document.addEventListener('click',(ev)=>{
   const it=ev.target.closest('.item'); if(it){ saveFields(); S.cur=it.dataset.id; renderList(); renderDetail(); $('#detail').scrollTop=0; return; }
   const tb=ev.target.closest('.tab'); if(tb){ saveFields(); S.tab=tb.dataset.tab; renderTabs(); renderList(); selectFirst(); return; }
   const cb=ev.target.closest('.cbtn'); if(cb){ setCond(cb.dataset.c); return; }
+  const gt=ev.target.closest('[data-goto]'); if(gt){ saveFields(); const id=gt.dataset.goto; const t=S.cases.find(x=>x.id===id); if(t){ S.tab=t.g==='dup'?'dup':(S.tab==='todo'?'todo':t.g); $('#f-estado').value=''; $('#f-frase').value=''; S.cur=id; renderTabs(); renderList(); renderDetail(); scrollCur(); } return; }
   if(ev.target.id==='b-next'){ confirmNext(); return; }
   if(ev.target.id==='b-okdif'){ const c=S.cases.find(x=>x.id===S.cur); if(c){ const d=S.dec[c.id]; d.okDif=true; d.ts=Date.now(); persist(); renderList(); renderStats(); renderDetail(); } return; }
   if(ev.target.id==='b-volver'){ const c=S.cases.find(x=>x.id===S.cur); if(c&&c.sug) setCond(c.sug); return; }
@@ -991,7 +1037,7 @@ function baseName(){ return (S.file||'Ejemplo').replace(/\.xlsx?$/i,''); }
 $('#b-hermes').addEventListener('click', async ()=>{
   saveFields();
   if(typeof XLSX==='undefined'){ toast('No se pudo cargar el generador de Excel. Recargá la página.'); return; }
-  const sel=S.cases.filter(c=>{ const e=estado(c); return e==='Sustraido'||e==='Inmediato'||e==='Hallado'; });
+  const sel=S.cases.filter(c=>{ if(c.g==='dup') return false; const e=estado(c); return e==='Sustraido'||e==='Inmediato'||e==='Hallado'; });
   if(!sel.length){ toast('Todavía no hay denuncias clasificadas como Sustraído, Inmediato o Hallado.'); return; }
   const rows=sel.map(c=>{ const r=c.row, d=dat(c); return {
     patente:d.patente||'', nro_registro:r.nro_registro||'', partido_hecho:r.partido_hecho||'', localidad_hecho:r.localidad_hecho||'',
