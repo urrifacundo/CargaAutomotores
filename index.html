@@ -171,6 +171,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <label class="field" for="s-parte"><span>Parte</span>
       <select id="s-parte"><option value="0">Todo</option><option value="1">Mitad 1 de 2</option><option value="2">Mitad 2 de 2</option></select></label>
     <span class="lockinfo" id="lockinfo" hidden></span>
+    <button class="btn small" id="b-recuperar" type="button" hidden>Recuperar lo borrado</button>
     <button class="btn danger small" id="b-borrar" type="button" hidden>Borrar todo</button>
     <div class="dlg" id="dlg-borrar" hidden style="flex-basis:100%"><b>¿Borrar todo el avance de este crudo en esta computadora?</b><span class="help">Se pierden las clasificaciones y correcciones cargadas acá y se desbloquea la parte. Si querés conservarlas, tocá antes "Guardar avance". No se puede deshacer.</span><span class="warn-b"><button class="btn danger" id="b-borrar-ok" type="button">Sí, borrar todo</button><button class="btn" id="b-borrar-no" type="button">Cancelar</button></span></div>
     <div class="stats" id="stats"></div>
@@ -886,7 +887,7 @@ function updBorrar(){
   const hay = !S.sample && (S.parteLock || Object.values(S.dec).some(d=>d && (d.cond || d.coord || d.patente!=null)));
   $('#b-borrar').hidden = !hay; if(!hay) $('#dlg-borrar').hidden = true;
 }
-function renderStats(){ updBorrar();
+function renderStats(){ updBorrar(); updRecuperar();
   const base=S.cases.filter(c=>inParte(c)&&c.g!=='dup'); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
   base.forEach(c=>cnt[estado(c)]++);
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
@@ -1050,10 +1051,22 @@ $('#s-parte').addEventListener('change',(e)=>{
   applyLock(); renderAll(); selectFirst(); });
 $('#b-borrar').addEventListener('click',()=>{ $('#dlg-borrar').hidden=false; $('#b-borrar-no').focus(); });
 $('#b-borrar-no').addEventListener('click',()=>{ $('#dlg-borrar').hidden=true; });
+function getBak(){ try{ const v=lsGet('hermes-bak:'+S.fileKey); return v?JSON.parse(v):null; }catch(e){ return null; } }
+function mergeDec(into, from){ let n=0; for(const [id,d] of Object.entries(from||{})){ const cur=into[id]; if(!cur || (d.ts||0)>(cur.ts||0)){ into[id]=d; n++; } } return n; }
+function updRecuperar(){ const b=getBak(); $('#b-recuperar').hidden = S.sample || !(b && Object.keys(b.dec||{}).length); }
 $('#b-borrar-ok').addEventListener('click',()=>{
+  // copia de seguridad antes de borrar (se suma a una copia anterior si la hubiera)
+  const prev=getBak(); const bakDec=Object.assign({}, prev&&prev.dec||{}); mergeDec(bakDec, S.dec);
+  lsSet('hermes-bak:'+S.fileKey, JSON.stringify({dec:bakDec, parte: S.parteLock?S.parte:(prev&&prev.parte)||'0', borrado:new Date().toISOString()}));
   S.dec={}; try{ localStorage.removeItem('hermes-dec:'+S.fileKey); localStorage.removeItem('hermes-parte:'+S.fileKey); }catch(e){}
-  S.parte='0'; S.parteLock=false; applyLock(); $('#dlg-borrar').hidden=true; updBorrar();
-  $('#f-estado').value=''; renderAll(); selectFirst(); toast('Se borró el avance de este crudo y se desbloqueó la parte.'); });
+  S.parte='0'; S.parteLock=false; applyLock(); $('#dlg-borrar').hidden=true; updBorrar(); updRecuperar();
+  $('#f-estado').value=''; renderAll(); selectFirst(); toast('Se borró el avance y se desbloqueó la parte. Si fue un error, tocá "Recuperar lo borrado".'); });
+$('#b-recuperar').addEventListener('click',()=>{
+  const b=getBak(); if(!b){ updRecuperar(); return; }
+  const n=mergeDec(S.dec, b.dec);
+  if(!S.parteLock && (b.parte==='1'||b.parte==='2')){ S.parte=b.parte; S.parteLock=true; lsSet('hermes-parte:'+S.fileKey,S.parte); }
+  try{ localStorage.removeItem('hermes-bak:'+S.fileKey); }catch(e){}
+  flush(); applyLock(); updRecuperar(); renderAll(); selectFirst(); toast('Se recuperaron '+n+' denuncias cargadas'+(S.parteLock?' y la parte '+(S.parte==='1'?'Mitad 1 de 2':'Mitad 2 de 2'):'')+'.'); });
 
 // ---------- descargas ----------
 let DL=null;
@@ -1089,20 +1102,24 @@ $('#b-hermes').addEventListener('click', async ()=>{
 $('#b-avance').addEventListener('click', async ()=>{
   saveFields();
   const n=Object.values(S.dec).filter(d=>d.cond).length;
-  const data=JSON.stringify({tipo:'avance-hermes',version:1,archivo:S.file,clave:S.fileKey,operador:S.op,guardado:new Date().toISOString(),decisiones:S.dec});
+  const data=JSON.stringify({tipo:'avance-hermes',version:2,archivo:S.file,clave:S.fileKey,operador:S.op,parte:S.parteLock?S.parte:'0',guardado:new Date().toISOString(),decisiones:S.dec});
   await save(baseName()+' - avance '+(S.op||'operador')+'.json', data);
   if(!n) toast('Se guardó el avance (todavía sin denuncias clasificadas).');
 });
 $('#f-avance').addEventListener('change', async (ev)=>{
   const files=[...ev.target.files]; ev.target.value=''; let added=0, bad=0, otro=0;
+  const partes=new Set();
   for(const f of files){
     try{ const j=JSON.parse(await f.text()); if(j.tipo!=='avance-hermes'||!j.decisiones){ bad++; continue; }
-      if(j.clave && j.clave!==S.fileKey) otro++;
+      if(j.clave && j.clave!==S.fileKey) otro++; else partes.add(j.parte==='1'||j.parte==='2'? j.parte : '0');
       for(const [id,d] of Object.entries(j.decisiones)){ const cur=S.dec[id]; if(!cur || (d.ts||0)>(cur.ts||0)){ S.dec[id]=d; added++; } }
     }catch(e){ bad++; }
   }
-  persist(); renderAll();
-  toast(added+' decisiones unidas'+(otro?' · ojo: '+otro+' archivo(s) de otro crudo':'')+(bad?' · '+bad+' archivo(s) no válidos':''));
+  // un solo operador recuperando su avance: vuelve a bloquear su mitad. Si se unen las dos mitades, no se bloquea.
+  let lockMsg='';
+  if(!S.parteLock && !S.sample && partes.size===1){ const pt=[...partes][0]; if(pt==='1'||pt==='2'){ S.parte=pt; S.parteLock=true; lsSet('hermes-parte:'+S.fileKey,pt); applyLock(); lockMsg=' · parte '+(pt==='1'?'Mitad 1 de 2':'Mitad 2 de 2')+' bloqueada'; } }
+  persist(); renderAll(); selectFirst();
+  toast(added+' decisiones unidas'+lockMsg+(otro?' · ojo: '+otro+' archivo(s) de otro crudo':'')+(bad?' · '+bad+' archivo(s) no válidos':''));
 });
 
 // ---------- arranque con ejemplos ----------
