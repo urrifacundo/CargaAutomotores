@@ -134,6 +134,11 @@ mark.p{background:var(--mark2);color:var(--ink)}
 .sg-Sustraido.sugtag{color:var(--sus);background:var(--sus-bg)}.sg-Inmediato.sugtag{color:var(--inm);background:var(--inm-bg)}.sg-Hallado.sugtag{color:var(--hal);background:var(--hal-bg)}.sg-No.sugtag{color:var(--no);background:var(--no-bg)}.sg-dif.sugtag{color:var(--sus);background:var(--sus-bg)}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
 .item.s-dup .stripe{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,transparent 3px,transparent 6px)}
+.btn.danger{color:var(--sus);border-color:var(--sus)}
+.btn.danger:hover{background:var(--sus-bg)}
+#b-borrar-ok{background:var(--sus);color:#fff}
+.lockinfo{font-size:12.5px;color:var(--muted);align-self:center}
+select:disabled{opacity:.7;cursor:not-allowed}
 .sample-tag{background:var(--inm-bg);color:var(--inm);font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;text-transform:uppercase;letter-spacing:.06em}
 body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radius:12px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px);z-index:20}
@@ -163,6 +168,9 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <label class="field" for="i-op"><span>Operador</span><input id="i-op" placeholder="Nombre" maxlength="40" style="width:150px"></label>
     <label class="field" for="s-parte"><span>Parte</span>
       <select id="s-parte"><option value="0">Todo</option><option value="1">Mitad 1 de 2</option><option value="2">Mitad 2 de 2</option></select></label>
+    <span class="lockinfo" id="lockinfo" hidden></span>
+    <button class="btn danger" id="b-borrar" type="button">Borrar todo</button>
+    <div class="dlg" id="dlg-borrar" hidden style="flex-basis:100%"><b>¿Borrar todo el avance de este crudo en esta computadora?</b><span class="help">Se pierden las clasificaciones y correcciones cargadas acá y se desbloquea la parte. Si querés conservarlas, tocá antes "Guardar avance". No se puede deshacer.</span><span class="warn-b"><button class="btn danger" id="b-borrar-ok" type="button">Sí, borrar todo</button><button class="btn" id="b-borrar-no" type="button">Cancelar</button></span></div>
     <div class="stats" id="stats"></div>
     <div style="flex-basis:100%" id="loadbox" hidden><div class="progress"><i id="pbar"></i></div><div class="help" id="ptext"></div></div>
   </div>
@@ -710,7 +718,15 @@ function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; 
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 let saveT=null;
 function persist(){ clearTimeout(saveT); saveT=setTimeout(()=>{ lsSet('hermes-dec:'+S.fileKey, JSON.stringify(S.dec)); },300); }
-function restore(){ try{ const v=lsGet('hermes-dec:'+S.fileKey); S.dec=v?JSON.parse(v):{}; }catch(e){ S.dec={}; } }
+function flush(){ clearTimeout(saveT); if(S.fileKey) lsSet('hermes-dec:'+S.fileKey, JSON.stringify(S.dec)); }
+window.addEventListener('pagehide',flush); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') flush(); });
+function restore(){ try{ const v=lsGet('hermes-dec:'+S.fileKey); S.dec=v?JSON.parse(v):{}; }catch(e){ S.dec={}; }
+  const pt=lsGet('hermes-parte:'+S.fileKey); S.parte = (pt==='1'||pt==='2')? pt : '0'; S.parteLock = (pt==='1'||pt==='2'); applyLock(); }
+function applyLock(){
+  const sel=$('#s-parte'); sel.value=S.parte; sel.disabled=!!S.parteLock;
+  const li=$('#lockinfo'); li.hidden=!S.parteLock;
+  if(S.parteLock) li.textContent='🔒 '+(S.parte==='1'?'Mitad 1 de 2':'Mitad 2 de 2')+' bloqueada. Para cambiarla: Borrar todo.';
+}
 S.op = lsGet('hermes-op') || '';
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,3200); }
@@ -1021,7 +1037,17 @@ document.addEventListener('keydown',(ev)=>{
 });
 ['q','f-estado','f-frase'].forEach(id=>$('#'+id).addEventListener('input',()=>{ renderList(); }));
 $('#i-op').value=S.op; $('#i-op').addEventListener('input',(e)=>{ S.op=e.target.value.trim(); lsSet('hermes-op',S.op); });
-$('#s-parte').addEventListener('change',(e)=>{ S.parte=e.target.value; renderAll(); selectFirst(); });
+$('#s-parte').addEventListener('change',(e)=>{
+  if(S.parteLock){ applyLock(); return; }
+  S.parte=e.target.value;
+  if(S.parte==='1'||S.parte==='2'){ S.parteLock=true; lsSet('hermes-parte:'+S.fileKey,S.parte); toast('Parte fijada: '+(S.parte==='1'?'Mitad 1 de 2':'Mitad 2 de 2')+'. Queda bloqueada para este crudo.'); }
+  applyLock(); renderAll(); selectFirst(); });
+$('#b-borrar').addEventListener('click',()=>{ $('#dlg-borrar').hidden=false; $('#b-borrar-no').focus(); });
+$('#b-borrar-no').addEventListener('click',()=>{ $('#dlg-borrar').hidden=true; });
+$('#b-borrar-ok').addEventListener('click',()=>{
+  S.dec={}; try{ localStorage.removeItem('hermes-dec:'+S.fileKey); localStorage.removeItem('hermes-parte:'+S.fileKey); }catch(e){}
+  S.parte='0'; S.parteLock=false; applyLock(); $('#dlg-borrar').hidden=true;
+  $('#f-estado').value=''; renderAll(); selectFirst(); toast('Se borró el avance de este crudo y se desbloqueó la parte.'); });
 
 // ---------- descargas ----------
 let DL=null;
