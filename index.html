@@ -173,6 +173,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <span class="lockinfo" id="lockinfo" hidden></span>
     <button class="btn small" id="b-recuperar" type="button" hidden>Recuperar lo borrado</button>
     <button class="btn danger small" id="b-borrar" type="button" hidden>Borrar todo</button>
+    <div class="dlg" id="dlg-clave" hidden style="flex-basis:100%"><b>Clave para descargar HERMES</b><span class="coordrow"><input id="i-clave" type="password" autocomplete="off" placeholder="Clave" style="flex:0 1 220px"><button class="btn primary" id="b-clave-ok" type="button">Descargar</button><button class="btn" id="b-clave-no" type="button">Cancelar</button></span><span class="help" id="clave-err" hidden style="color:var(--sus)">Clave incorrecta.</span></div>
     <div class="dlg" id="dlg-borrar" hidden style="flex-basis:100%"><b>¿Borrar todo el avance de este crudo en esta computadora?</b><span class="help">Se pierden las clasificaciones y correcciones cargadas acá y se desbloquea la parte. Si querés conservarlas, tocá antes "Guardar avance". No se puede deshacer.</span><span class="warn-b"><button class="btn danger" id="b-borrar-ok" type="button">Sí, borrar todo</button><button class="btn" id="b-borrar-no" type="button">Cancelar</button></span></div>
     <div class="stats" id="stats"></div>
     <div style="flex-basis:100%" id="loadbox" hidden><div class="progress"><i id="pbar"></i></div><div class="help" id="ptext"></div></div>
@@ -1139,7 +1140,20 @@ async function save(filename,data){
   catch(e){ const c=e&&e.code; if(c==='declined') toast('Descarga cancelada.'); else if(c==='rate_limited') toast('Ya hay una descarga esperando confirmación.'); else toast('No se pudo descargar ('+(c||'error')+').'); return false; }
 }
 function baseName(){ return (S.file||'Ejemplo').replace(/\.xlsx?$/i,''); }
-$('#b-hermes').addEventListener('click', async ()=>{
+// ---------- clave para descargar HERMES (se guarda solo el hash) ----------
+const HERMES_HASH='5fb913269a589aebc259b0ee3067467355ed46b7c4dba222452b777bdbb4d1e9';
+async function sha256(t){ const b=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+let hermesOk=false;
+$('#b-hermes').addEventListener('click', ()=>{ if(hermesOk){ descargarHermes(); return; } $('#dlg-clave').hidden=false; $('#i-clave').value=''; $('#clave-err').hidden=true; $('#i-clave').focus(); });
+$('#b-clave-no').addEventListener('click', ()=>{ $('#dlg-clave').hidden=true; });
+async function probarClave(){
+  let ok=false; try{ ok = (await sha256('carga-hermes|'+$('#i-clave').value.trim()))===HERMES_HASH; }catch(e){ ok=false; }
+  if(!ok){ $('#clave-err').hidden=false; $('#i-clave').select(); return; }
+  hermesOk=true; $('#dlg-clave').hidden=true; descargarHermes();
+}
+$('#b-clave-ok').addEventListener('click', probarClave);
+$('#i-clave').addEventListener('keydown', (ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); probarClave(); } if(ev.key==='Escape'){ $('#dlg-clave').hidden=true; } });
+async function descargarHermes(){
   saveFields();
   if(typeof XLSX==='undefined'){ toast('No se pudo cargar el generador de Excel. Recargá la página.'); return; }
   const sel=S.cases.filter(c=>{ if(c.g==='dup') return false; const e=estado(c); return e==='Sustraido'||e==='Inmediato'||e==='Hallado'; });
@@ -1158,7 +1172,7 @@ $('#b-hermes').addEventListener('click', async ()=>{
   const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   const ok=await save(baseName()+' - HERMES.xlsx', new Blob([out]));
   if(ok && (sinPat||sinCo||fDud)) setTimeout(()=>toast(rows.length+' autos exportados'+(sinPat?'; '+sinPat+' sin patente':'')+(sinCo?'; '+sinCo+' sin coordenada':'')+(fDud?'; '+fDud+' con fecha dudosa':'')+'.'),3300);
-});
+}
 $('#b-avance').addEventListener('click', async ()=>{
   saveFields();
   const n=Object.values(S.dec).filter(d=>d.cond).length;
