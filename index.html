@@ -135,6 +135,7 @@ mark.p{background:var(--mark2);color:var(--ink)}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
 .item.s-dup .stripe{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,transparent 3px,transparent 6px)}
 .btn.danger{color:var(--sus);border-color:var(--sus)}
+.btn.small{padding:4px 10px;font-size:12.5px;align-self:center}
 .btn.danger:hover{background:var(--sus-bg)}
 #b-borrar-ok{background:var(--sus);color:#fff}
 .lockinfo{font-size:12.5px;color:var(--muted);align-self:center}
@@ -169,7 +170,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <label class="field" for="s-parte"><span>Parte</span>
       <select id="s-parte"><option value="0">Todo</option><option value="1">Mitad 1 de 2</option><option value="2">Mitad 2 de 2</option></select></label>
     <span class="lockinfo" id="lockinfo" hidden></span>
-    <button class="btn danger" id="b-borrar" type="button">Borrar todo</button>
+    <button class="btn danger small" id="b-borrar" type="button" hidden>Borrar todo</button>
     <div class="dlg" id="dlg-borrar" hidden style="flex-basis:100%"><b>¿Borrar todo el avance de este crudo en esta computadora?</b><span class="help">Se pierden las clasificaciones y correcciones cargadas acá y se desbloquea la parte. Si querés conservarlas, tocá antes "Guardar avance". No se puede deshacer.</span><span class="warn-b"><button class="btn danger" id="b-borrar-ok" type="button">Sí, borrar todo</button><button class="btn" id="b-borrar-no" type="button">Cancelar</button></span></div>
     <div class="stats" id="stats"></div>
     <div style="flex-basis:100%" id="loadbox" hidden><div class="progress"><i id="pbar"></i></div><div class="help" id="ptext"></div></div>
@@ -880,7 +881,11 @@ function visible(){
 function dat(c){ const d=S.dec[c.id]||{}; const x=c.a.datos; return { patente: d.patente!=null?d.patente:x.dominio, marca: d.marca!=null?d.marca:x.marca, modelo: d.modelo!=null?d.modelo:x.modelo, chasis: d.chasis!=null?d.chasis:x.chasis, motor: d.motor!=null?d.motor:x.motor, obs: d.obs||'' }; }
 
 // ---------- render ----------
-function renderStats(){
+function updBorrar(){
+  const hay = !S.sample && (S.parteLock || Object.values(S.dec).some(d=>d && (d.cond || d.coord || d.patente!=null)));
+  $('#b-borrar').hidden = !hay; if(!hay) $('#dlg-borrar').hidden = true;
+}
+function renderStats(){ updBorrar();
   const base=S.cases.filter(c=>inParte(c)&&c.g!=='dup'); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
   base.forEach(c=>cnt[estado(c)]++);
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
@@ -1046,7 +1051,7 @@ $('#b-borrar').addEventListener('click',()=>{ $('#dlg-borrar').hidden=false; $('
 $('#b-borrar-no').addEventListener('click',()=>{ $('#dlg-borrar').hidden=true; });
 $('#b-borrar-ok').addEventListener('click',()=>{
   S.dec={}; try{ localStorage.removeItem('hermes-dec:'+S.fileKey); localStorage.removeItem('hermes-parte:'+S.fileKey); }catch(e){}
-  S.parte='0'; S.parteLock=false; applyLock(); $('#dlg-borrar').hidden=true;
+  S.parte='0'; S.parteLock=false; applyLock(); $('#dlg-borrar').hidden=true; updBorrar();
   $('#f-estado').value=''; renderAll(); selectFirst(); toast('Se borró el avance de este crudo y se desbloqueó la parte.'); });
 
 // ---------- descargas ----------
