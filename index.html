@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Carga HERMES Automotores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: barra superior de carga/progreso, cola de denuncias a la izquierda, ficha de clasificacion a la derecha */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --ink:#18202c; --muted:#5b6575; --line:#d9dee6; --soft:#eaeef4;
+  --accent:#1d4fa3; --accent-ink:#ffffff; --plate:#ffffff; --plate-band:#1d3f8f;
+  --sus:#b42318; --sus-bg:#fde8e6; --inm:#9a5b00; --inm-bg:#fff1d6; --hal:#16794a; --hal-bg:#dff5e9; --no:#5b6575; --no-bg:#e9ecf1;
+  --mark:#ffe58a; --mark-ink:#18202c; --mark2:#cfe0ff;
+  --f-ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141b; --panel:#171e28; --ink:#e6ebf2; --muted:#9aa5b5; --line:#2a3442; --soft:#1e2733;
+  --accent:#6f9bea; --accent-ink:#0b1220; --plate:#f4f6fa; --plate-band:#2a56b8;
+  --sus:#ff8a7e; --sus-bg:#3a1a18; --inm:#f2bd59; --inm-bg:#3a2a0c; --hal:#5fd39a; --hal-bg:#0f3324; --no:#aab4c3; --no-bg:#252e3b;
+  --mark:#6b5a12; --mark-ink:#fff6cf; --mark2:#22385f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141b; --panel:#171e28; --ink:#e6ebf2; --muted:#9aa5b5; --line:#2a3442; --soft:#1e2733;
+  --accent:#6f9bea; --accent-ink:#0b1220; --plate:#f4f6fa; --plate-band:#2a56b8;
+  --sus:#ff8a7e; --sus-bg:#3a1a18; --inm:#f2bd59; --inm-bg:#3a2a0c; --hal:#5fd39a; --hal-bg:#0f3324; --no:#aab4c3; --no-bg:#252e3b;
+  --mark:#6b5a12; --mark-ink:#fff6cf; --mark2:#22385f; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.45;margin:0}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px;display:flex;flex-direction:column;gap:12px;min-height:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.brand h1{font-size:18px;margin:0;letter-spacing:.2px;text-wrap:balance}
+.brand small{color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 12px;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+label.file{position:relative;overflow:hidden}
+label.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.field{display:flex;flex-direction:column;gap:3px}
+.field>span:first-child{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field>.help{text-transform:none;letter-spacing:0}
+.field input,.field select,.field textarea{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 8px;min-width:0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stats{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.c-sus{background:var(--sus-bg);color:var(--sus)} .c-inm{background:var(--inm-bg);color:var(--inm)} .c-hal{background:var(--hal-bg);color:var(--hal)} .c-no{background:var(--no-bg);color:var(--no)} .c-pend{background:var(--soft);color:var(--muted)}
+.notice{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;color:var(--muted);background:var(--panel)}
+.notice b{color:var(--ink)}
+.progress{height:6px;background:var(--soft);border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0}
+.main{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:12px;flex:1;min-height:0}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+.queue{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-height:0;max-height:calc(100vh - 220px)}
+@media (max-width:860px){.queue{max-height:46vh}}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px;border-bottom:1px solid var(--line)}
+.tab{border:1px solid transparent;background:transparent;border-radius:6px;padding:5px 8px;font-size:13px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--soft);color:var(--ink);border-color:var(--line);font-weight:600}
+.tab b{font-variant-numeric:tabular-nums;margin-left:4px}
+.filters{display:flex;gap:6px;padding:8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.filters input,.filters select{flex:1 1 120px;min-width:0;max-width:100%;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 8px;font-size:13px}
+.list{overflow:auto;flex:1;min-height:0}
+.item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px 8px 0;border-bottom:1px solid var(--line);cursor:pointer;width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0}
+.item:hover{background:var(--soft)}
+.item[aria-current="true"]{background:var(--soft)}
+.item .stripe{height:100%;min-height:34px;border-radius:0 3px 3px 0;background:var(--line)}
+.item.s-Sustraido .stripe{background:var(--sus)} .item.s-Inmediato .stripe{background:var(--inm)} .item.s-Hallado .stripe{background:var(--hal)} .item.s-No .stripe{background:var(--no)}
+.queue,.detail{min-width:0}
+.item>span{min-width:0}
+.item .t,.item .m{display:block}
+.item .t{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .m{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-plate{font-family:var(--f-mono);font-size:11px;font-weight:600;border:1px solid var(--line);border-top:3px solid var(--plate-band);border-radius:3px;padding:0 5px;background:var(--plate);color:#111;letter-spacing:.05em}
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-width:0;min-height:0;max-height:calc(100vh - 220px);overflow:auto}
+@media (max-width:860px){.detail{max-height:none}}
+.dhead{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.dhead .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.frase{font-weight:700;font-size:15px;letter-spacing:.01em;min-width:0;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 14px;min-width:0;overflow-wrap:anywhere}
+.meta b{color:var(--ink);font-weight:600}
+.sect{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.sect h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.frag{font-size:13.5px;background:var(--soft);border-radius:6px;padding:8px 10px}
+.frag .why{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.senal{font-size:12.5px;color:var(--muted)} .senal b{color:var(--ink)}
+.cond{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:520px){.cond{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cbtn{border:1.5px solid var(--line);background:var(--panel);border-radius:8px;padding:10px 8px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:2px}
+.cbtn kbd{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:500}
+.cbtn.sug{border-style:dashed}
+.cbtn[data-c="Sustraido"][aria-pressed="true"]{background:var(--sus-bg);border-color:var(--sus);color:var(--sus)}
+.cbtn[data-c="Inmediato"][aria-pressed="true"]{background:var(--inm-bg);border-color:var(--inm);color:var(--inm)}
+.cbtn[data-c="Hallado"][aria-pressed="true"]{background:var(--hal-bg);border-color:var(--hal);color:var(--hal)}
+.cbtn[data-c="No"][aria-pressed="true"]{background:var(--no-bg);border-color:var(--no);color:var(--no)}
+.sugline{font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:620px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grid .wide{grid-column:1/-1}
+.plate-in{font-family:var(--f-mono);font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--plate)!important;color:#111!important;border-top:4px solid var(--plate-band)!important}
+.mono{font-family:var(--f-mono);text-transform:uppercase}
+.relato{font-size:13.5px;white-space:pre-wrap;max-width:85ch;line-height:1.6}
+mark{background:var(--mark);color:var(--mark-ink);border-radius:2px;padding:0 1px}
+mark.p{background:var(--mark2);color:var(--ink)}
+.navrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.help{font-size:12px;color:var(--muted)}
+.help kbd{font-family:var(--f-mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;font-size:11px}
+.empty{padding:24px;color:var(--muted)}
+.coordrow{display:flex;gap:8px;flex-wrap:wrap}.coordrow input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 8px}
+.coordrow .btn{text-decoration:none;color:var(--ink);white-space:nowrap}
+.cst{font-style:normal;font-weight:700;text-transform:none;letter-spacing:0}.cst-ok,.cst-operador{color:var(--hal)}.cst-corregida{color:var(--inm)}.cst-falta,.cst-invalida{color:var(--sus)}
+.c-warn{background:var(--sus-bg);color:var(--sus);border:0;cursor:pointer}
+.sample-tag{background:var(--inm-bg);color:var(--inm);font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;text-transform:uppercase;letter-spacing:.06em}
+body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radius:12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;max-width:calc(100% - 32px);z-index:20}
+.dlg{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.dlg ul{margin:0;padding-left:18px;color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <h1>Carga HERMES Automotores</h1>
+      <small id="fileinfo">Cargá o arrastrá acá el crudo de Cassandra. Mientras tanto se ven 3 denuncias de ejemplo.</small>
+    </div>
+    <div class="actions">
+      <label class="btn primary file" for="f-crudo">Cargar crudo (.xlsx)<input type="file" id="f-crudo" accept=".xlsx,.xls"></label>
+      <label class="btn file" for="f-avance">Unir avances (.json)<input type="file" id="f-avance" accept=".json" multiple></label>
+      <button class="btn" id="b-avance" type="button">Guardar avance</button>
+      <button class="btn primary" id="b-hermes" type="button">Descargar HERMES</button>
+    </div>
+  </div>
+
+  <div class="bar">
+    <label class="field" for="i-op"><span>Operador</span><input id="i-op" placeholder="Nombre" maxlength="40" style="width:150px"></label>
+    <label class="field" for="s-parte"><span>Parte</span>
+      <select id="s-parte"><option value="0">Todo</option><option value="1">Mitad 1 de 2</option><option value="2">Mitad 2 de 2</option></select></label>
+    <div class="stats" id="stats"></div>
+    <div style="flex-basis:100%" id="loadbox" hidden><div class="progress"><i id="pbar"></i></div><div class="help" id="ptext"></div></div>
+  </div>
+
+  <div class="main">
+    <section class="queue" aria-label="Denuncias">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Buscar patente, partido, id…">
+        <select id="f-estado"><option value="">Todos los estados</option><option value="pend">Pendientes</option><option value="Sustraido">Sustraído</option><option value="Inmediato">Inmediato</option><option value="Hallado">Hallado</option><option value="No">No corresponde</option><option value="sincoord">Sin coordenada válida</option></select>
+        <select id="f-frase"><option value="">Todas las frases</option></select>
+      </div>
+      <div class="list" id="list"></div>
+    </section>
+    <section class="detail" id="detail" aria-live="polite"></section>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Motor de clasificacion de denuncias (port de la version Python, 13/11/2026)
+(function (root) {
+'use strict';
+function norm(s) {
+  return String(s == null ? '' : s).normalize('NFKD').replace(/[^\x00-\x7F]/g, '').toLowerCase().replace(/\s+/g, ' ');
+}
+const R = (s, f) => new RegExp(s, f || '');
+const G = (s) => new RegExp(s, 'g');
+function* iter(re, t) { re.lastIndex = 0; let m; while ((m = re.exec(t)) !== null) { yield m; if (m[0] === '') re.lastIndex++; } }
+function at(re, t, pos) { const r = new RegExp(re.source, 'y'); r.lastIndex = pos; return r.exec(t); } // re.match at pos
+function full(src, s) { return R('^(?:' + src + ')$').test(s || ''); }
+function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+const VEH_SG = '(?:vehiculo|rodado|automovil|automotor|camioneta|moto|motocicleta|moto ?-?vehiculo|motovehiculo|motoveh\\w*|auto|camion|utilitario|ciclomotor|cuatriciclo|furgon|furgoneta|pick ?up|scooter|motito|unidad(?! (?:funcional|policial|movil|regional|fiscal|penal|de (?:policia|traslado|bomberos|emergencia)|sanitaria|carcelaria|identificable)))';
+const MOTO_W = '(?:moto\\b|motocicleta|moto ?-?vehiculo|motovehiculo|motoveh\\w*|ciclomotor|cuatriciclo|scooter|motito)';
+const MOTO_MODELS = '(?:\\bwave\\b|\\bybr\\b|tornado|\\bxtz\\b|\\bfz ?\\d|\\bfz\\b|\\bbiz\\b|\\bcg ?\\d|\\btitan\\b|\\bsmash\\b|corven|motomel|zanella|keller|\\brouser\\b|\\bblitz\\b|\\bdominar\\b|\\bxr ?\\d|\\bcb ?\\d|\\bdax\\b|\\bsirius\\b|\\bcrypton\\b|guerrero|\\bgilera\\b|mondial|\\bbajaj\\b|\\bkymco\\b|\\bbenelli\\b|\\bbeta\\b|\\bjianshe\\b|\\bbrava\\b|\\bstorm\\b|\\bnavi\\b|\\bpulsar\\b|\\bvoge\\b|\\bcf ?moto\\b|czmoto|hero\\b|\\bmotoneta\\b|\\bskua\\b|\\bs2\\b|\\bdk ?\\d|\\bcg\\b|\\bkawasaki\\b|\\bktm\\b|\\bducati\\b|\\bharley\\b|tvs\\b|\\brx ?\\d{3}|\\bsapucai\\b|\\bxmm\\b|\\bnmax\\b|\\bxtz\\b|\\bwave\\b|ybr|\\bgn ?125|\\btriax\\b|\\btrip\\b|\\bmotard\\b|\\bxre\\b|\\bcg titan|\\bmax ?\\d|1p\\d{2}f[mq]\\w*|\\d{3}fm[hgi]\\w*)';
+const SUS = '(?:despoja\\w*|sustra\\w*|sus ?tra\\w*|sustrac\\w*|robar\\w*|roban\\w*|robo\\b|hurt\\w*|se (?:lo |la |los |las )?lleva\\w*|llevaron\\w*|llevandose|apodera\\w*|faltante|desapodera\\w*|se (?:lo |la )?(?:roban|robaron))';
+const AUTHOR_MOTO = '(?:a bordo de (?:una|un) (?:moto|motocicleta|motoveh\\w*|moto vehiculo)|en (?:una|un) (?:moto|motocicleta|motoveh\\w*)|motochorro|se movilizaban en (?:una )?moto|circulaban en (?:una )?moto|(?:una|la) moto en la que (?:se )?(?:movilizaban|circulaban|venian|huyen|huyeron))';
+
+const P_THEFT_SRC = [
+  SUS + '\\s(?:(?:le|les|me|nos|se|lo|la|a la victima|al damnificado|a la damnificada|al dicente|a la dicente|al denunciante|a la denunciante)\\s)*(?:(?:a|al) (?:\\w+ )?)?(?:su|mi|el|la|un|una|dicho|dicha|mencionad[oa]|citad[oa]|mism[oa]|tal|referid[oa])?\\s?(?:propio |nuevo |nueva |propia )?(' + VEH_SG + ')\\b',
+  '(' + VEH_SG + ')\\b[^.;]{0,200}?(?:ya no (?:se )?(?:encontraba|estaba|se hallaba|se encontraba)|ya nose encontraba|no se encontraba(?:ba)? (?:en el lugar|estacionad|donde)|no (?:se )?encontraba(?:ba)? (?:en el lugar|estacionad|donde lo|donde la)|no estaba (?:en el lugar|donde|estacionad)|(?:habia|habria|fue|fuera|es|ha|haber) (?:sido )?(?:sustraid|robad|hurtad|llevad)|le (?:fue|es|habria sido|habia sido) (?:sustraid|robad|hurtad)|(?:se )?(?:lo|la) (?:habian|habrian|han) (?:sustraido|robado|llevado|hurtado)|desaparecid)',
+  '(?:constata|constato|advierte|advirtio|observa|observo|nota|noto|percata|percato|da cuenta|verifica|verifico)\\w*\\s(?:\\w+\\s){0,4}?(?:el |la )?(?:faltante|ausencia|desaparicion) de(?:l)? (?:su |el |la |dicho |dicha )?(' + VEH_SG + ')',
+  '(?:huye\\w*|huir\\w*|darse a la fuga|darse a la huida|dandose a la huida|fugarse|fugandose|se dan a la fuga|se dan a al fuga|se dieron a la fuga|huyendo|se van|se fueron|se retiran|se retiraron|escapan|escaparon|emprenden la fuga|se alejan|se alejaron|dandose a la fuga|dan a la fuga|se fugan|se fugaron|se dan a la huida|emprenden la huida)\\s(?:\\w+\\s){0,5}?(?:a bordo|con|en|al mando|conduciendo|manejando)\\s(?:\\w+\\s){0,2}?(?:de )?(?:su|mi|el|la|dicho|dicha|mencionad[oa]|citad[oa]|mism[oa])\\s(?:propio |propia )?(' + VEH_SG + ')\\b',
+  '(?:se suben?|suben|abordan|abordaron|abordando|ascienden|se apoderan|arrancan|arrancaron|ponen en marcha|pusieron en marcha|se lleva\\w*|llevaron|llevandose) (?:(?:a |de |en )?(?:\\w+ ){0,3}?(?:su|el|la|dicho|dicha|mencionad[oa]|citad[oa]|mism[oa]) |al |del )(?:propio |propia )?(' + VEH_SG + ')\\b',
+  '(?:robo|hurto|sustraccion|faltante) (?:de|del|de su|de la|de dicho|de un|de una) (?:propio |propia )?(' + VEH_SG + ')\\b',
+  SUS + '[^.;]{0,160}?(?:,|\\by\\b|como asi(?: tambien)?|asi como|ademas de|junto a|junto con) (?:tambien )?(?:su|el|la|dicho|dicha) (?:propio |propia )?(' + VEH_SG + ')\\b',
+  'huyendo (?:con |en |a bordo de )?(?:su|mi|el|la|dicho|dicha) (?:propio |propia )?(' + VEH_SG + ')\\b',
+  '(?:despoja\\w*|desapodera\\w*) (?:a |al )?(?:\\w+ ){0,2}?del? (?:su |mi |dicho |dicha )?(' + VEH_SG + ')\\b',
+  '(?:hacen|hicieron|obligan|obligaron|hace|obliga|haciendola|haciendolo|obligandol[oa]) (?:a )?(?:descender|bajar|bajarse|descenderse) (?:del?|de su|de la|de dicho) (?:propio )?(' + VEH_SG + ')\\b',
+];
+const P_THEFT = P_THEFT_SRC.map(G);
+const VC = '(?:vehiculo|rodado|automovil|camioneta|auto|camion|utilitario|furgon|furgoneta|pick ?up|trafic|kangoo|partner|berlingo)';
+const P_INSIDE = G('(?:del interior de(?:l)? (?:su |el |la |dicho |dicha |mencionad[oa] )?' + VC + '|de adentro del? (?:su |el |la )?' + VC + '|\\bhabitaculo(?! (?:trasero |de detenidos |de seguridad )?del (?:movil|patrullero))(?! del movil)|de la guantera|\\bguantera|del baul|de la caja de (?:la|su) camioneta|ventanilla|luneta|(?:vidrio|cristal|cerradura|puerta|ventana)s? (?:\\w+ ){0,4}?(?:del|de su|de la|de dicho) (?:propio )?' + VC + '|' + VC + '\\b[^.;]{0,80}?(?:con|presentaba|tenia|presenta)\\s(?:\\w+ ){0,3}?(?:vidrio|cristal|cerradura)s? (?:\\w+ ){0,2}?(?:roto|rota|danad|forzad|violentad|estallad)|(?:sustra\\w*|sus tra\\w*|llevaron|se llevan|faltante)[^.;]{0,120}?\\b(?:de|desde) (?:su|el|la|dicho|dicha) ' + VC + '\\b)');
+const AUTOPARTES = '\\b(?:ruedas?|neumaticos?|cubiertas?|llantas?|bateria|espejos? (?:retrovisor|lateral)\\w*|espejos?|catalizador\\w*|faros?\\b|opticas?|parabrisas|luneta|computadora del (?:vehiculo|auto)|tapa de (?:tanque|nafta)|paragolpes|baul|ecu\\b|chapa patente|patentes?\\b|placa|stereo|estereo|autoestereo|radio del (?:vehiculo|auto)|pantalla multimedia|multimedia|tazas?|bulones|limpiaparabrisas|escobillas|logos?|insignias?|faroles?|antena|emblema|sensor\\w*|motor de arranque|alternador|tanque de nafta|combustible|nafta|gasoil|cable\\w* de bateria)';
+const V_DOM = R('(?:\\bgarage|\\bgaraje|\\bcochera|\\bpatio|\\bquincho|\\bgalpon|\\bparque de su|interior de (?:su |la |el |dicho |dicha )?(?:domicilio|vivienda|casa|propiedad|terreno|finca|inmueble|lote|chacra|campo|quinta)|dentro de (?:su |la |el )?(?:domicilio|vivienda|casa|propiedad|terreno|lote|predio de su)|en (?:el )?fondo de|ingres\\w* (?:\\w+ ){0,3}?(?:a |al |en )(?:su |la |el )?(?:domicilio|vivienda|casa|propiedad|terreno|inmueble|lote)|entradera|ingreso de (?:los|dos|tres|cuatro|varios) (?:delincuentes|malvivientes|masculinos|sujetos)|revuelven la (?:propiedad|vivienda|casa)|dentro de la propiedad|en la propiedad|a la propiedad|maniat|precint|(?:forzar|forzaron|rompen|rompieron|violentan|violentaron|saltan|saltaron|treparon|trepan|escalan|escalaron)\\w* (?:\\w+ ){0,3}?(?:el |la |los |las )?(?:porton|reja|rejas|cerco|tapial|paredon|muro|alambrado|puerta de ingreso)|\\bporton)');
+const V_COM = R('(?:playa de estacionamiento|estacionamiento (?:del|de la|de un|de una|privado|publico|municipal)|en el estacionamiento|predio|supermercado|shopping|lavadero|taller|gomeria|concesionari|obrador|deposito|estacion de servicio|playon|corralon|hospital|clinica|country|barrio cerrado|club|terminal|empresa)');
+const VIOL = R('(?:arma de fuego|armas? de fuego|arma blanca|\\barmas?\\b|revolver|pistola|cuchillo|navaja|punal|a punta de|amenaz|intimid|golpe|golpean|golpearon|golpeandol|empuj|forcejeo|forceje|reducen|redujeron|ataca|agred|violencia|culatazo|lo apuntan|le apuntan|apuntandol|exhibiendo|esgrimiendo|portando|tirotean|disparo|disparan|dispararon|hacen bajar|hicieron bajar|obligan a bajar|obligaron a (?:bajar|descender)|lo bajan|la bajan|lo bajaron|la bajaron|baja(?:te|r) del|descende|abordado por|interceptad|interceptan|interceptaron|lo encierran|lo cruzan|le cierran el paso|quedate quieto|dame (?:la|el)|entrega(?:me|r)? (?:la|el|las) (?:llave|moto|auto)|exigen|exigieron|maniatad|atan|ataron|esposad|encierran)');
+const RECUP = R('(?:recuper\\w*|hallad[oa]|hallazgo|encontrad[oa] (?:abandonad|en)|abandonad[oa]|fue encontrad|lo encuentra|la encuentra|lo encontr|la encontr|ubicad[oa]|aparecio|logra\\w* (?:ubicar|recuperar|encontrar|interceptar)|secuestr\\w*|interceptad|aprehend|demorad|detenid)');
+const PEDIDO = G('(?:pedido de secue?stro|pedido de secuetro|solicitud de secuestro|pedido de captura|pedido secuestro|registra pedido|posee pedido|arroja\\w* (?:como resultado )?(?:un )?pedido|con pedido|pedido activo|denunciad[oa] como (?:robad|sustraid|hurtad)|(?:robo|hurto) automotor|(?:robo|hurto) (?:de )?(?:automotor|motoveh\\w*|moto vehiculo|motocicleta)\\b)');
+const PEDIDO_STRICT = G('(?:pedido de secue?stro|pedido de secuetro|solicitud de secuestro|pedido de captura|pedido secuestro|registra pedido|posee pedido|arroja\\w* (?:como resultado )?(?:un )?pedido|con pedido|pedido activo|denunciad[oa] como (?:robad|sustraid|hurtad))');
+const NEG_PED = R('(?:no (?:\\w+ ){0,3}?(?:posee|poseen|registra|registran|arroja|arrojan|surge|tiene|tienen|pesa)\\w* (?:\\w+ ){0,3}?pedido|sin pedido|ningun pedido|pedido (?:\\w+ ){0,3}?(?:negativo|alguno))');
+const DATE_RX = '(\\d{1,2})\\s?[/\\.-]\\s?(\\d{1,2})\\s?[/\\.-]\\s?(\\d{2,4})';
+const FOOT = G('automotores marca (.{0,40}?) dominio (.{0,12}?) modelo (.{0,50}?) nro\\. motor (.{0,70}?) color (.{0,30}?) nro\\. chasis (.{0,50}?) vinculo (sustraido|utilizado durante|secuestrado|abandonado|\\w+)');
+const MOTO_BRANDS = '(?:motomel|zanella|corven|gilera|keller|guerrero|mondial|bajaj|kymco|benelli|beta|jianshe|brava|siambretta|hero|tvs|cfmoto|cf moto|voge|ktm|kawasaki|ducati|harley|royal enfield|suzuki moto|honda motos|yamaha|okinoi|appia|kiden|sym|piaggio|vespa|dayun|zontes|husqvarna|triumph|bmw motorrad|rouser|skua|xmm|lifan|haojue)';
+const CAR_BRANDS = '(?:fiat|renault|peugeot|chevrolet|ford|volkswagen|vw|toyota|citroen|nissan|jeep|kia|hyundai|chery|mercedes(?: benz)?|audi|dodge|ram|iveco|scania|bmw|mitsubishi|subaru|alfa romeo|seat|chrysler|daihatsu|geely|baic|haval|jac|dfsk|lifan auto|great wall|land rover|volvo|mini|ds|isuzu|smart)';
+const HONDA_CAR = '(?:civic|fit|city|cr-?v|hr-?v|wr-?v|accord|fun|zr-?v)';
+const SAME_DAY = R('(?:momentos? antes|minutos antes|instantes (?:antes|previos)|hace (?:instantes|minutos|momentos)|recientemente sustraid|acaba(?:n|ba|ban)? de (?:ser )?(?:sustra|robar|ser robad)|minutos (?:atras|previos)|en el dia de la fecha (?:le )?(?:habria|habia|fue) (?:sido )?sustra)');
+const NOVEDAD_ROBO = R('(?:novedad|alerta|aviso|comisionad\\w*|modulad\\w*|alertad\\w*|desplazamiento|despacho)[^.]{0,200}?(?:robo|sustraccion|sustraid|robad|asalto)[^.]{0,120}?(?:vehiculo|automovil|automotor|rodado|camioneta|moto|motoveh\\w*|auto\\b|camion)');
+const VEHWORD = R('(?:vehiculo|rodado|automovil|automotor|camioneta|\\bmoto\\b|motocicleta|moto ?-?vehiculo|motoveh\\w*|\\bauto\\b|camion|utilitario|ciclomotor|cuatriciclo|dominio|chasis|cuadro n)');
+const ABAND = R('(?:en (?:aparente )?(?:estado de )?abandono|abandonad[oa]|sin ocupantes|sin moradores|sin custodia|mal estacionad|incinerad|quemad[oa])');
+const NUMER = R('(?:adulterad\\w*|adulteracion|limad\\w*|regrabad\\w*|suprimid\\w*|alterad\\w*|apocrif\\w*|no original|sin numeracion|numeracion (?:ilegible|borrada|faltante))');
+const DOM_ALL = '([a-z]{2} ?\\d{3} ?[a-z]{2}|[a-z]\\d{3}[a-z]{3}|[a-z]{3} ?\\d{3}|\\d{3} ?[a-z]{3})';
+const DOM_RX = G('(?:dominio|patente|chapa|placa)(?: colocado| colocada| n[or]?\\.?| nro\\.?| numero)?[:\\s]{1,3}' + DOM_ALL + '\\b');
+const isMotoDom = (x) => full('[a-z]\\d{3}[a-z]{3}|\\d{3} ?[a-z]{3}', x);
+
+function count(src, s) { return (s.match(G(src)) || []).length; }
+function sub(src, s, rep) { return s.replace(G(src), rep); }
+
+function footType(marca, dominio, modelo) {
+  const s = marca + ' ' + modelo;
+  if (R(MOTO_BRANDS).test(s) || R(MOTO_MODELS).test(s) || R(MOTO_W).test(s)) return 'MOTO';
+  if (full('[a-z]\\d{3}[a-z]{3}|\\d{3}[a-z]{3}', (dominio || '').replace(/[ -]/g, ''))) return 'MOTO';
+  const m = marca.trim();
+  if (m.startsWith('honda') && /\d{2,3} ?cc\b|\b(?:twister|xr|wave|cg|biz|titan|tornado|cb|xre|nxr|pop|glh|storm|dax|elite|navi|falcon|cbr|crf|sahara|transalp|africa|nc ?\d|rebel|shadow|pcx|adv)\b/.test(modelo)) return 'MOTO';
+  if (/\b\d{2,3} ?cc\b/.test(modelo)) return 'MOTO';
+  return 'AUTOMOTOR';
+}
+function feet(t) { return [...iter(FOOT, t)].map(m => ({ marca: m[1], dominio: m[2], modelo: m[3], motor: m[4], color: m[5], chasis: m[6], vinculo: m[7], index: m.index, end: m.index + m[0].length })); }
+function domType(t) {
+  const doms = [...iter(DOM_RX, t)].map(m => m[1]);
+  const m = doms.filter(isMotoDom).length;
+  return { m, a: doms.length - m, doms };
+}
+function vtypeCtx(ctx) {
+  const c2 = sub(AUTHOR_MOTO, ctx, ' ');
+  const mm = count(MOTO_W, c2) + count(MOTO_MODELS, c2);
+  const aa = count('\\b(?:automovil|automotor|camioneta|\\bauto\\b|camion|utilitario|furgon|pick ?up|sedan|hatchback)', c2) + count('\\b(?:fiat|renault|peugeot|chevrolet|ford|volkswagen|toyota|citroen|nissan|jeep|kia|hyundai|chery|mercedes|audi|dodge|ram|iveco|scania)\\b', c2);
+  return mm > aa ? 'MOTO' : 'AUTOMOTOR';
+}
+const OBJ_NOT_VEH = '\\w*\\s(?:a \\w+ )?(?:su|sus|el|la|los|las|un|una|dos|tres|varios|varias|diversos|diversas)\\s(?!' + VEH_SG + '\\b)(?!propi)\\w+';
+function findTheft(t) {
+  const out = [];
+  P_THEFT.forEach((p, i) => {
+    for (const m of iter(p, t)) {
+      const w = m[1] || '';
+      const s = m.index, e = s + m[0].length;
+      const ctx = t.slice(Math.max(0, s - 300), e + 300);
+      const post = t.slice(e, e + 70);
+      if (R('^[^.;]{0,6}?(?:(?:en|con) (?:el|la) (?:que|cual) (?:se )?(?:\\w+ban|llegaron|huyeron|vinieron|escaparon)\\b|que (?:conducian|manejaban|utilizaban|tripulaban|llevaban|traian)|de los (?:autores|masculinos|delincuentes|malvivientes|sujetos|ladrones|femeninas)|del (?:autor|masculino|delincuente|sujeto)|en que (?:se )?\\w+ban)').test(post)) continue;
+      if ([0, 5, 6].includes(i) && R('^[^.;]{0,40}?(?:del interior|de adentro|dentro de(?:l)? (?:su |el |la )?(?:vehiculo|auto|rodado|camioneta))').test(post)) continue;
+      if (w === 'rodado' && /bici|bicicleta|rodado \d/.test(t.slice(Math.max(0, s - 150), e + 80))) continue;
+      if (/bicicleta/.test(w + post.slice(0, 25))) continue;
+      if (i === 1) {
+        const tail = t.slice(e, e + 40);
+        if (R('^' + OBJ_NOT_VEH).test(tail)) continue;
+        if (/^\w*\s(?:(?:de|del|desde) (?:el |la )?interior|elementos|pertenencias|objetos|dinero|efectivo|mercaderia|herramientas|celular|telefono|documentacion|prendas|articulos|bienes|cosas|varios|diversos)/.test(tail)) continue;
+      }
+      if (i === 4) {
+        if (!/(?:masculinos|sujetos|delincuentes|malvivientes|autores|ladrones|individuos|femeninas|los mismos|ambos|uno de ellos|otro de ellos|el otro|masculino)/.test(t.slice(Math.max(0, s - 200), s))) continue;
+        if (/^[^.;]{0,30}?(?:para (?:dirigirse|ir|retirarse|trasladarse)|y se dirig)/.test(post)) continue;
+      }
+      if ((i === 0 || i === 6) && /\b(?:de|del|desde|en)\s(?:su |el |la |dicho |dicha )?(?:propio |propia )?$/.test(m[0].slice(0, m[0].length - w.length))) continue;
+      out.push({ pat: i, word: w, pos: s, end: e, ctx });
+    }
+  });
+  return out;
+}
+function partsOrInside(t) {
+  let inside = false;
+  for (const m of iter(P_INSIDE, t)) {
+    if (R(SUS).test(t.slice(Math.max(0, m.index - 250), m.index + m[0].length + 250))) { inside = true; break; }
+  }
+  const found = [];
+  for (const m of iter(G(SUS), t)) {
+    const s = m.index, e = s + m[0].length;
+    if (t.slice(Math.max(0, s - 200), e + 200).includes('bicicleta')) continue;
+    const win = t.slice(s, e + 140);
+    if (/(?:vehiculo|rodado|auto|camioneta|camion|utilitario|moto|automovil)/.test(t.slice(Math.max(0, s - 250), e + 250))) {
+      for (const a of iter(G(AUTOPARTES), win)) found.push(a[0]);
+    }
+  }
+  if (!found.length) return { inside, parts: false };
+  if (found.every(f => /^(?:chapa patente|patentes?|placa)/.test(f))) return { inside, parts: 'PATENTES' };
+  return { inside, parts: true };
+}
+function victimType(thefts) {
+  const v = { MOTO: 0, AUTOMOTOR: 0 };
+  for (const s of thefts) {
+    const w = s.word;
+    if (full(MOTO_W, w)) v.MOTO += 3;
+    else if (['vehiculo', 'rodado', 'unidad', 'coche', 'carro', 'automotor'].includes(w)) {
+      const c2 = sub(AUTHOR_MOTO, s.ctx, ' ');
+      if (R(MOTO_W).test(c2) || R(MOTO_MODELS).test(c2)) v.MOTO += 1; else v.AUTOMOTOR += 1;
+    } else if (w) v.AUTOMOTOR += 3;
+  }
+  return v.MOTO > v.AUTOMOTOR ? 'MOTO' : 'AUTOMOTOR';
+}
+// ---- fechas ----
+function parseRef(v) {
+  if (v instanceof Date && !isNaN(v)) return Date.UTC(v.getFullYear(), v.getMonth(), v.getDate());
+  if (typeof v === 'number') return Math.round((v - 25569) * 86400000);
+  const s = String(v || '');
+  let m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]);
+  return null;
+}
+function mkdate(dd, mm, yy, ref) {
+  dd = +dd; mm = +mm; const r = new Date(ref);
+  if (yy) { yy = +String(yy).replace('.', ''); if (yy < 100) yy += 2000; }
+  else { yy = r.getUTCFullYear(); if (mm > r.getUTCMonth() + 1 || (mm === r.getUTCMonth() + 1 && dd > r.getUTCDate())) yy -= 1; }
+  if (!(yy >= 1990 && yy <= r.getUTCFullYear() + 1)) return null;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+  const d = Date.UTC(yy, mm - 1, dd); const x = new Date(d);
+  if (x.getUTCDate() !== dd) return null;
+  return d;
+}
+function prevDate(t, ref) {
+  for (const m of iter(PEDIDO, t)) {
+    const s = m.index, e = s + m[0].length;
+    if (NEG_PED.test(t.slice(Math.max(0, s - 60), e + 30))) continue;
+    const win = t.slice(s, e + 300); const c = [];
+    for (const dm of iter(G('(?:fecha(?: de alta| de inicio| de carga| de denuncia)?|desde (?:el )?(?:dia|fecha)?|del dia|el dia|alta|de fecha|data del|iniciad[oa] el|radicad[oa] el)\\D{0,14}' + DATE_RX), win)) {
+      const d = mkdate(dm[1], dm[2], dm[3], ref); if (d !== null && d <= ref) c.push(d);
+    }
+    if (!c.length) {
+      const w2 = win.slice(0, 200);
+      for (const dm of iter(G(DATE_RX), w2)) {
+        if (/nacid|nac\.|edad|naci/.test(w2.slice(Math.max(0, dm.index - 25), dm.index))) continue;
+        const d = mkdate(dm[1], dm[2], dm[3], ref); if (d !== null && d <= ref && new Date(d).getUTCFullYear() >= 2000) c.push(d);
+      }
+    }
+    if (c.length) return c[0];
+  }
+  return null;
+}
+function ant(d, ref) {
+  if (d == null) return 'SIN DATO';
+  const k = Math.round((ref - d) / 86400000);
+  if (k <= 0) return 'MISMO DIA'; if (k <= 7) return '1 A 7 DIAS ANTES'; if (k <= 30) return '8 A 30 DIAS ANTES'; return 'MAS DE 30 DIAS ANTES';
+}
+const fmtD = (d) => { if (d == null) return ''; const x = new Date(d); return String(x.getUTCDate()).padStart(2, '0') + '/' + String(x.getUTCMonth() + 1).padStart(2, '0') + '/' + x.getUTCFullYear(); };
+
+// ---- clasificacion principal ----
+function classify(relato, calificaciones, fechaHecho) {
+  const t = norm(relato), cal = norm(calificaciones);
+  let ref = parseRef(fechaHecho); if (ref == null) ref = Date.UTC(2026, 10, 13);
+  const F = feet(t), fsus = F.filter(f => f.vinculo.startsWith('sustraido'));
+  const out = { frase: '', vehiculo: '', fechaPrevia: '', antiguedad: '', recupero: '', t, cal };
+  const { m: mdom, a: adom } = domType(t);
+  const isEnc = cal.includes('encubrimiento'), isNum = cal.includes('numeracion'), isHall = cal.includes('hallazgo');
+  if (isEnc || isNum || isHall) {
+    const ped = [];
+    for (const m of iter(PEDIDO, t)) {
+      const s = m.index, e = s + m[0].length;
+      const win = t.slice(Math.max(0, s - 350), e + 200);
+      if (NEG_PED.test(t.slice(Math.max(0, s - 60), e + 30))) continue;
+      if (VEHWORD.test(win) && !R('(?:arma|revolver|pistola|celular|telefono|iphone|samsung|motorola|escopeta|bicicleta)[^.]{0,80}' + esc(m[0])).test(win)) ped.push(win);
+    }
+    const recupRobo = NOVEDAD_ROBO.test(t) || fsus.length > 0 || SAME_DAY.test(t);
+    const thefts = findTheft(t);
+    const partes = /(?:autopartes|auto partes|desarmadero|partes de (?:vehiculo|automotor|moto)|piezas de (?:vehiculo|automotor|moto)|motor (?:de|marca) [^.]{0,40}pedido)/.test(t);
+    let vt = null;
+    if (cal.includes('hallazgo de moto')) vt = 'MOTO'; else if (cal.includes('hallazgo de automotor')) vt = 'AUTOMOTOR';
+    let hasVeh = ped.length > 0 || vt !== null || (isNum && VEHWORD.test(t)) || fsus.length > 0 || (thefts.length > 0 && (isHall || isEnc));
+    if (!hasVeh) {
+      const ab = /(?:abandonad|hallazgo de(?:l)? (?:un |una )?(?:vehiculo|rodado|auto|moto|camioneta|automotor))/.exec(t);
+      if (isHall && VEHWORD.test(t) && ab && !t.slice(Math.max(0, ab.index - 120), ab.index + ab[0].length + 60).includes('bicicleta')) hasVeh = true;
+      else return null;
+    }
+    if (vt === null || vt === 'AUTOMOTOR') {
+      const ctxs = ped.length ? ped.join(' ') : t;
+      const v2 = F.length ? footType(F[0].marca, F[0].dominio, F[0].modelo) : vtypeCtx(ctxs);
+      if (vt === null) vt = v2;
+      else if (v2 === 'MOTO' && count(MOTO_W, sub(AUTHOR_MOTO, ctxs, ' ')) >= 2 && !/\b(?:automovil|camioneta|\bauto\b)/.test(ctxs)) vt = 'MOTO';
+    }
+    out.vehiculo = vt;
+    let dt = prevDate(t, ref);
+    if (dt == null && SAME_DAY.test(t)) dt = ref;
+    if (dt == null && (fsus.length || NOVEDAD_ROBO.test(t)) && !ped.length) dt = ref;
+    out.fechaPrevia = fmtD(dt); out.antiguedad = ant(dt, ref); out.recupero = 'SI';
+    const V = vt === 'AUTOMOTOR' ? 'AUTOMOTOR' : 'MOTO', Vs = vt === 'AUTOMOTOR' ? 'AUTOMOTOR SUSTRAIDO' : 'MOTO SUSTRAIDA', oa = V === 'AUTOMOTOR' ? 'O' : 'A';
+    if (isEnc) {
+      if (partes && !ped.length && !thefts.length) out.frase = 'ENCUBRIMIENTO - AUTOPARTES DE ORIGEN ILICITO';
+      else if (ped.length || dt != null) out.frase = `ENCUBRIMIENTO - ${Vs} PREVIAMENTE (CON PEDIDO DE SECUESTRO)`;
+      else out.frase = `ENCUBRIMIENTO - ${V} SIN PEDIDO DE SECUESTRO INFORMADO`;
+    } else if (isNum) {
+      out.frase = ped.length ? `ENCUBRIMIENTO - ${Vs} PREVIAMENTE (CON PEDIDO DE SECUESTRO)` : `${V} CON NUMERACION ADULTERADA`;
+    } else {
+      const same = dt != null && dt >= ref;
+      if (ped.length && !(same && recupRobo)) out.frase = `HALLAZGO - ${Vs} PREVIAMENTE (CON PEDIDO DE SECUESTRO)`;
+      else if (recupRobo || thefts.length || ped.length) out.frase = `HALLAZGO - ${Vs} RECUPERAD${oa} TRAS EL HECHO`;
+      else out.frase = `HALLAZGO - ${V} ABANDONAD${oa} (SIN PEDIDO INFORMADO)`;
+    }
+    out.theftPos = thefts.length ? thefts[0].pos : -1;
+    return out;
+  }
+  if (!/robo|hurto|averiguacion de ilicito|abigeato|estafa|defraudacion|retencion/.test(cal)) return null;
+  const thefts = findTheft(t);
+  const { inside, parts } = partsOrInside(t);
+  let whole = thefts.length > 0 || fsus.length > 0;
+  if (whole && !fsus.length) {
+    const strong = thefts.filter(x => [0, 1, 2, 5, 6, 7, 8, 9].includes(x.pat));
+    if (!strong.length && !/(?:a bordo de su|a bordo del|a bordo de un|a bordo de una|circulando (?:con|en|a bordo de) (?:su|el|un|una)|conduciendo (?:su|el|un|una)|manejando (?:su|el|un|una)|en su|de su propiedad|titular del|propietario del|propietaria del|su) (?:vehiculo|rodado|automovil|camioneta|moto|motocicleta|motoveh\w*|auto|camion|utilitario)/.test(t)) whole = false;
+    if (whole && (inside || parts) && !thefts.some(x => x.pat === 1 || x.pat === 2)) {
+      const ws = thefts.filter(x => !/(?:pertenencias|objetos|elementos|articulos|herramientas|mochila|cartera|bolso)/.test(x.ctx.slice(250, 330)));
+      if (!ws.length) whole = false;
+    }
+  }
+  if (cal.includes('dejado en la via publica') && !whole && !inside && !parts) whole = true;
+  if (!whole && !inside && !parts) return null;
+  const violCal = /armas|arma de fuego|utileria|lesiones|robo agravado \(comision en (?:poblado|despoblado) y en banda\)/.test(cal);
+  if (whole) {
+    let vt;
+    if (fsus.length) vt = footType(fsus[0].marca, fsus[0].dominio, fsus[0].modelo);
+    else {
+      vt = thefts.length ? victimType(thefts) : (mdom > adom ? 'MOTO' : vtypeCtx(t));
+      const generic = thefts.every(x => ['vehiculo', 'rodado', 'automotor', ''].includes(x.word));
+      if (generic && mdom && !adom) vt = 'MOTO'; else if (generic && adom && !mdom) vt = 'AUTOMOTOR';
+    }
+    out.vehiculo = vt;
+    const V = vt === 'AUTOMOTOR' ? 'AUTOMOTOR' : 'MOTO';
+    const pos = thefts.length ? thefts[0].pos : 0;
+    const win = t.slice(Math.max(0, pos - 900), pos + 500);
+    let viol = violCal || VIOL.test(win);
+    if (!/robo/.test(cal) || (cal.includes('averiguacion') && !/robo|hurto/.test(cal)))
+      viol = /arma|amenaz|golpe|intimid|a punta|revolver|pistola|cuchillo|bajate|lo bajan|la bajan|obligan a descender|obligaron a descender/.test(win) && !/hurto/.test(cal);
+    if (cal.includes('dejado en la via publica') && !violCal && !/arma|amenaz|golpe|intimid|a punta|revolver|pistola|cuchillo/.test(win)) viol = false;
+    const tent = /tentativa/.test(cal);
+    let lugar = 'VP';
+    const w2 = t.slice(Math.max(0, pos - 450), pos + 150);
+    if (V_DOM.test(win) && !/frente a (?:su |la |el )?(?:domicilio|vivienda|casa)|en la puerta de (?:su |la )?(?:domicilio|vivienda|casa)/.test(win.slice(700))) lugar = 'DOM';
+    else if (V_COM.test(w2) && /estacionamiento|playa|playon|predio|supermercado|shopping|lavadero|taller|gomeria|concesionari|deposito|estacion de servicio|corralon|obrador/.test(w2)) lugar = 'COM';
+    if (cal.includes('dejado en la via publica')) lugar = lugar === 'COM' ? 'COM' : 'VP';
+    if (tent) out.frase = `TENTATIVA DE ROBO DE ${V}`;
+    else if (viol) out.frase = `ROBO DE ${V} CON ARMAS/VIOLENCIA - ` + (lugar === 'DOM' ? 'DENTRO DE DOMICILIO' : 'VIA PUBLICA');
+    else out.frase = `SUSTRAJERON ${V} ` + { VP: 'DE LA VIA PUBLICA', DOM: 'DEL INTERIOR DE DOMICILIO', COM: 'DE ESTACIONAMIENTO/PREDIO/COMERCIO' }[lugar];
+    const after = t.slice(pos);
+    out.recupero = RECUP.test(after) && /(?:recuper|hallad|abandonad|secuestr|encontr|ubicad|interceptad)\w*[^.]{0,120}(?:vehiculo|rodado|auto|moto|camioneta|camion|automovil|utilitario)|(?:vehiculo|rodado|auto|moto|camioneta|camion|automovil|utilitario)[^.]{0,120}(?:recuperad|hallad|abandonad|secuestrad|encontrad|ubicad)/.test(after) ? 'SI' : 'NO';
+    out.theftPos = thefts.length ? thefts[0].pos : -1;
+    return out;
+  }
+  out.vehiculo = vtypeCtx(t);
+  out.frase = parts === 'PATENTES' ? 'SUSTRAJERON CHAPAS PATENTES DEL VEHICULO' : parts ? 'SUSTRAJERON AUTOPARTES DEL VEHICULO' : 'SUSTRAJERON ARTICULOS DEL INTERIOR DEL VEHICULO';
+  out.theftPos = -1;
+  return out;
+}
+
+// ---- tipo auto / moto con senales ----
+function marcas(t) {
+  const out = [];
+  for (const m of iter(G('marca:?\\s*([a-z]+(?: [a-z]+)?)(?:,? (?:modelo:?\\s*)?([a-z0-9\\- ]{1,25}))?'), t)) {
+    const b = m[1], mod = m[2] || '';
+    const win = t.slice(Math.max(0, m.index - 120), m.index);
+    if (/(?:celular|telefono|movil|notebook|reloj|zapatill|campera|mochila|televisor|tv|arma|pistola|revolver|bicicleta|casco|parlante|estereo|bateria|cubierta|neumatico|llanta|equipo)\s*(?:\w+\s){0,3}$/.test(win)) continue;
+    if (R(AUTHOR_MOTO).test(win.slice(-60))) continue;
+    const bb = b.split(' ')[0];
+    if (full(CAR_BRANDS, b) || full(CAR_BRANDS, bb)) out.push(['AUTOMOTOR', (b + ' ' + mod.trim()).trim(), m.index]);
+    else if (bb === 'honda') out.push([R(HONDA_CAR).test(mod) ? 'AUTOMOTOR' : 'MOTO', ('honda ' + mod.trim()).trim(), m.index]);
+    else if (bb === 'suzuki') out.push([/(?:gn|en|ax|gsx|dr|hayabusa|burgman|125)/.test(mod) ? 'MOTO' : 'AUTOMOTOR', ('suzuki ' + mod.trim()).trim(), m.index]);
+    else if (full(MOTO_BRANDS, bb) || full(MOTO_BRANDS, b)) out.push(['MOTO', (b + ' ' + mod.trim()).trim(), m.index]);
+  }
+  return out;
+}
+const uniq = (a) => [...new Set(a)];
+function tipo(t, cal, vehRelato) {
+  const sig = [];
+  const F = feet(t).filter(f => !f.vinculo.startsWith('utilizado'));
+  if (F.length) sig.push(['FICHA AL PIE', footType(F[0].marca, F[0].dominio, F[0].modelo), `${F[0].marca.trim()} ${F[0].modelo.trim()} dominio ${F[0].dominio.toUpperCase()}`]);
+  if (cal.includes('hallazgo de moto')) sig.push(['CALIFICACION', 'MOTO', 'hallazgo de moto vehiculo']);
+  else if (cal.includes('hallazgo de automotor')) sig.push(['CALIFICACION', 'AUTOMOTOR', 'hallazgo de automotor']);
+  const { m, a, doms } = domType(t);
+  const dl = uniq(doms.map(x => x.toUpperCase().replace(/ /g, ''))).join(', ').slice(0, 40);
+  if (m && !a) sig.push(['PATENTE', 'MOTO', 'formato de moto: ' + dl]);
+  else if (a && !m) sig.push(['PATENTE', 'AUTOMOTOR', 'formato de auto: ' + dl]);
+  else if (a && m) sig.push(['PATENTE', 'MIXTO', 'hay patentes de auto y de moto']);
+  const mk = marcas(t);
+  if (mk.length) {
+    const tm = mk.filter(x => x[0] === 'MOTO').length, ta = mk.length - tm;
+    sig.push(['MARCA/MODELO', tm > ta ? 'MOTO' : ta > tm ? 'AUTOMOTOR' : 'MIXTO', uniq(mk.map(x => x[1])).join('; ').slice(0, 60)]);
+  }
+  sig.push(['PALABRAS DEL RELATO', vehRelato, 'lectura del relato']);
+  const w = { 'FICHA AL PIE': 3, 'CALIFICACION': 2, 'MARCA/MODELO': 2, 'PATENTE': 1.5, 'PALABRAS DEL RELATO': 1 };
+  const s = { MOTO: 0, AUTOMOTOR: 0 };
+  for (const [k, v] of sig) if (v in s) s[v] += w[k];
+  const tp = s.MOTO > s.AUTOMOTOR ? 'MOTO' : 'AUTOMOTOR';
+  const contra = sig.filter(([k, v]) => v in s && v !== tp).length, favor = sig.filter(([k, v]) => v === tp).length;
+  return { tipo: tp, conf: contra ? 'DUDOSO' : favor >= 2 ? 'ALTA' : 'MEDIA', senales: sig };
+}
+function fixFrase(f, tp) {
+  const pairs = tp === 'MOTO'
+    ? [['AUTOMOTOR SUSTRAIDO RECUPERADO', 'MOTO SUSTRAIDA RECUPERADA'], ['AUTOMOTOR SUSTRAIDO', 'MOTO SUSTRAIDA'], ['AUTOMOTOR ABANDONADO', 'MOTO ABANDONADA'], ['AUTOMOTOR', 'MOTO']]
+    : [['MOTO SUSTRAIDA RECUPERADA', 'AUTOMOTOR SUSTRAIDO RECUPERADO'], ['MOTO SUSTRAIDA', 'AUTOMOTOR SUSTRAIDO'], ['MOTO ABANDONADA', 'AUTOMOTOR ABANDONADO'], [' MOTO', ' AUTOMOTOR']];
+  for (const [a, b] of pairs) f = f.split(a).join(b);
+  return f;
+}
+
+// ---- fragmento clave ----
+function sentence(t, s, e, maxlen) {
+  maxlen = maxlen || 380;
+  while (e < t.length && /[a-z0-9]/i.test(t[e])) e++;
+  let a = Math.max(t.lastIndexOf('. ', s - 1), t.lastIndexOf('; ', s - 1));
+  if (a > s) a = -1;
+  a = (a >= 0 && s - a < 260) ? a + 2 : Math.max(0, s - 160);
+  let b = t.indexOf('. ', e);
+  b = (b !== -1 && b - e < 220) ? b + 1 : Math.min(t.length, e + 160);
+  const pre = (a > 0 && !['. ', '; '].includes(t.slice(a - 2, a))) ? '...' : '';
+  let txt = t.slice(a, s) + '«' + t.slice(s, e).toUpperCase() + '»' + t.slice(e, b);
+  if (txt.length > maxlen) { const cut = Math.max(0, (s - a) - 120); txt = '...' + txt.slice(cut, cut + maxlen); }
+  return { text: (pre + txt).trim(), s, e };
+}
+function keySpan(t, f) {
+  const first = (re) => { const m = R(re.source).exec(t); return m ? [m.index, m.index + m[0].length] : null; };
+  if (f.startsWith('HALLAZGO') || f.startsWith('ENCUBRIMIENTO') || f.includes('NUMERACION')) {
+    if (f.includes('PEDIDO DE SECUESTRO') && !f.includes('SIN PEDIDO')) {
+      for (const m of iter(PEDIDO_STRICT, t)) { const s = m.index, e = s + m[0].length; if (!NEG_PED.test(t.slice(Math.max(0, s - 60), e + 30))) return [s, e, 'Pedido de secuestro informado']; }
+    }
+    if (f.includes('RECUPERAD')) {
+      const m = first(NOVEDAD_ROBO) || first(SAME_DAY); if (m) return [...m, 'Robo del mismo dia narrado en el acta'];
+      const th = findTheft(t); if (th.length) return [th[0].pos, th[0].end, 'Robo del vehiculo narrado en el acta'];
+    }
+    if (f.includes('NUMERACION')) { const m = first(NUMER); if (m) return [...m, 'Numeracion adulterada']; }
+    if (f.includes('ABANDONAD') || f.includes('SIN PEDIDO')) { const m = first(ABAND) || first(/hallazgo de(?:l)? (?:un |una )?\w+/); if (m) return [...m, 'Vehiculo abandonado / hallado']; }
+    const m = first(/pedido|sustraid|robad|abandon|hallazgo/); return m ? [...m, 'Mencion general'] : null;
+  }
+  if (f.includes('ARTICULOS DEL INTERIOR')) {
+    for (const m of iter(P_INSIDE, t)) if (R(SUS).test(t.slice(Math.max(0, m.index - 250), m.index + m[0].length + 250))) return [m.index, m.index + m[0].length, 'Objetos del interior del vehiculo'];
+  }
+  if (f.includes('AUTOPARTES') || f.includes('PATENTES')) {
+    for (const m of iter(G(SUS), t)) {
+      const s = m.index, e = s + m[0].length;
+      if (t.slice(Math.max(0, s - 200), e + 200).includes('bicicleta')) continue;
+      const a = R(AUTOPARTES).exec(t.slice(e, e + 140));
+      if (a) return [s, e + a.index + a[0].length, f.includes('PATENTES') ? 'Chapas patentes' : 'Autopartes: ' + a[0]];
+    }
+  }
+  const th = findTheft(t); const st = th.filter(x => [0, 1, 2, 5, 6, 7, 8, 9].includes(x.pat)); const use = st.length ? st : th;
+  if (use.length) return [use[0].pos, use[0].end, 'Sustraccion del vehiculo'];
+  const F = feet(t); if (F.length) return [F[0].index, F[0].end, 'Ficha del vehiculo al pie: vinculo sustraido'];
+  const m = first(R(SUS)); return m ? [...m, 'Mencion general'] : null;
+}
+
+// ---- datos del vehiculo: marca, modelo, patente, chasis, motor, color ----
+const clean = (s) => (s || '').replace(/[.,;:]+$/, '').replace(/\s+/g, ' ').trim().toUpperCase();
+const PLATE = '([a-z]{2}[ -]?\\d{3}[ -]?[a-z]{2}|[a-z][ -]?\\d{3}[ -]?[a-z]{3}|[a-z]{3}[ -]?\\d{3}|\\d{3}[ -]?[a-z]{3})';
+const PLATE_KW = G('(?:dominio|patente|chapa patente|chapa|placa)s?(?: colocad[oa]s?| original| n[or]?\\.?| nro\\.?| numero| n\\.?o| registral)*[:\\s]{1,3}' + PLATE + '\\b');
+const PLATE_BARE = G('\\b([a-z]{2}\\d{3}[a-z]{2}|[a-z]\\d{3}[a-z]{3})\\b');
+const plateOk = (p) => /^(?:[A-Z]{2}\d{3}[A-Z]{2}|[A-Z]{3}\d{3}|[A-Z]\d{3}[A-Z]{3}|\d{3}[A-Z]{3})$/.test(p);
+const plateMoto = (p) => /^(?:[A-Z]\d{3}[A-Z]{3}|\d{3}[A-Z]{3})$/.test(p);
+const BRAND_CANON = { vw: 'Volkswagen', volkswagen: 'Volkswagen', citroen: 'Citroën', mercedes: 'Mercedes Benz', 'mercedes benz': 'Mercedes Benz', bmw: 'BMW', baic: 'BAIC', ds: 'DS', jac: 'JAC', dfsk: 'DFSK', ssangyong: 'SsangYong', 'alfa romeo': 'Alfa Romeo', 'great wall': 'Great Wall', 'land rover': 'Land Rover', ram: 'RAM', kia: 'Kia' };
+const canonBrand = (b) => { b = (b || '').toLowerCase().trim(); if (!b) return ''; return BRAND_CANON[b] || b.replace(/\b\w/g, c => c.toUpperCase()); };
+const CAR_BRANDS_X = '(?:fiat|renault|peugeot|chevrolet|ford|volkswagen|vw|toyota|citroen|nissan|jeep|kia|hyundai|chery|mercedes(?: benz)?|audi|dodge|ram|iveco|scania|bmw|mitsubishi|subaru|alfa romeo|seat|chrysler|daihatsu|geely|baic|haval|jac|dfsk|great wall|land rover|volvo|isuzu|ssangyong|lada|lifan|suzuki|honda)';
+const MODEL_STOP = '(?:,| de color| color| dominio| patente| con | ano | anio | motor| chasis| cuadro| tipo| el cual| la cual| que | n[o°]? | nro|\\.| y | en )';
+function vehiculoDatos(t, tp, anchor) {
+  const d = { marca: '', modelo: '', dominio: '', chasis: '', motor: '', color: '', fuente: '' };
+  const wantMoto = tp === 'MOTO';
+  const F = feet(t).filter(f => !f.vinculo.startsWith('utilizado'));
+  const fm = F.find(f => footType(f.marca, f.dominio, f.modelo) === tp) || null;
+  if (fm) {
+    d.marca = canonBrand(fm.marca.trim()); d.modelo = clean(fm.modelo);
+    const p = clean(fm.dominio).replace(/[^A-Z0-9]/g, ''); d.dominio = plateOk(p) ? p : '';
+    d.chasis = /especific|^s\/?d|^sin/.test(fm.chasis) ? '' : clean(fm.chasis).replace(/[^A-Z0-9*]/g, '');
+    d.motor = /especific|^s\/?d|^sin/.test(fm.motor) ? '' : clean(fm.motor).replace(/[^A-Z0-9*]/g, '');
+    d.color = clean(fm.color); d.fuente = 'Ficha al pie';
+  }
+  const near = (arr) => { if (!arr.length) return null; if (anchor == null || anchor < 0) return arr[0]; return arr.slice().sort((x, y) => Math.abs(x.i - anchor) - Math.abs(y.i - anchor))[0]; };
+  if (!d.marca || !d.modelo) {
+    let cands = marcas(t).filter(x => x[0] === tp).map(x => ({ b: x[1], i: x[2], kw: true }));
+    if (!cands.length && !wantMoto) {
+      cands = [...iter(G('\\b(?:vehiculo|automovil|rodado|camioneta|auto|utilitario|furgon|camion)(?: (?:de )?(?:la )?marca)? ' + '(' + CAR_BRANDS_X + ')\\b'), t)].map(m => ({ b: m[1], i: m.index, kw: false }));
+    }
+    const best = near(cands);
+    if (best) {
+      const bm = R('^(' + CAR_BRANDS_X + '|' + MOTO_BRANDS + '|[a-z]+)').exec(best.b);
+      const brand = bm ? bm[1] : best.b.split(' ')[0];
+      if (!d.marca) d.marca = canonBrand(brand);
+      if (!d.modelo) {
+        const mm = R(esc(brand) + '[,:]?\\s+(?:modelo:?\\s*)?([a-z0-9][a-z0-9\\- ./]{0,30}?)' + MODEL_STOP).exec(t.slice(best.i, best.i + 200) + '.');
+        if (mm) d.modelo = clean(mm[1].replace(/^modelo\s*/, ''));
+      }
+      d.fuente = d.fuente || 'Relato';
+    }
+  }
+  if (!d.dominio) {
+    let doms = [...iter(PLATE_KW, t)].map(m => ({ v: m[1].replace(/[ -]/g, '').toUpperCase(), i: m.index })).filter(x => plateOk(x.v) && plateMoto(x.v) === wantMoto);
+    if (!doms.length) doms = [...iter(PLATE_BARE, t)].map(m => ({ v: m[1].toUpperCase(), i: m.index })).filter(x => plateMoto(x.v) === wantMoto);
+    const b = near(doms); if (b) { d.dominio = b.v; d.fuente = d.fuente || 'Relato'; }
+  }
+  if (!d.chasis) {
+    const c = [...iter(/(?:chasis|cuadro)(?: n[o°ro]?\.?| nro\.?| numero| n\.?o)?[:\s]{1,3}([a-z0-9*\-]{6,20})/g, t)].map(m => ({ v: m[1], i: m.index })).filter(x => /\d/.test(x.v));
+    const b = near(c); if (b) d.chasis = b.v.toUpperCase().replace(/-/g, '');
+  }
+  if (!d.motor) {
+    const c = [...iter(/motor(?: n[o°ro]?\.?| nro\.?| numero| n\.?o)?[:\s]{1,3}([a-z0-9*\-]{6,20})/g, t)].map(m => ({ v: m[1], i: m.index })).filter(x => /\d/.test(x.v));
+    const b = near(c); if (b) d.motor = b.v.toUpperCase().replace(/-/g, '');
+  }
+  if (!d.color) {
+    const c = [...iter(/(?:de )?color:? ([a-z]+(?: (?:claro|oscuro|metalizado|perlado))?)/g, t)].map(m => ({ v: m[1], i: m.index })).filter(x => !/^(?:de|y|con|el|la)$/.test(x.v));
+    const b = near(c); if (b) d.color = b.v.toUpperCase();
+  }
+  return d;
+}
+
+const REVISAR = 'REVISAR - MENCIONA UN AUTOMOTOR (SIN ROBO DETECTADO)';
+function candidato(row) {
+  const t = norm(row.relato), cal = norm(row.calificaciones);
+  if (!/robo|hurto|averiguacion de ilicito|hallazgo|encubr|estafa|defraud|abigeato/.test(cal)) return null;
+  const { a } = domType(t);
+  const mk = marcas(t).filter(x => x[0] === 'AUTOMOTOR');
+  if (!a && !mk.length) return null;
+  const k = mk.length ? [mk[0][2], mk[0][2] + 5] : (() => { const m = R(DOM_RX.source).exec(t); return m ? [m.index, m.index + m[0].length] : null; })();
+  const frag = k ? sentence(t, k[0], k[1]) : null;
+  return { frase: REVISAR, vehiculo: 'AUTOMOTOR', confianza: 'BAJA', senales: [['AVISO', 'AUTOMOTOR', 'el relato nombra un auto pero el motor no encontro el robo']],
+    fechaPrevia: '', antiguedad: '', recupero: '', porque: 'Menciona un auto: revisar si corresponde', fragmento: frag ? frag.text : '', fragPos: frag ? [frag.s, frag.e] : null,
+    datos: vehiculoDatos(t, 'AUTOMOTOR', k ? k[0] : -1), revisar: true };
+}
+function analizar(row) {
+  const r = classify(row.relato, row.calificaciones, row.fecha_inicio_hecho);
+  if (!r) return candidato(row);
+  const tp = tipo(r.t, r.cal, r.vehiculo);
+  const frase = fixFrase(r.frase, tp.tipo);
+  const k = keySpan(r.t, frase);
+  const frag = k ? sentence(r.t, k[0], k[1]) : null;
+  const anchor = r.theftPos >= 0 ? r.theftPos : (k ? k[0] : -1);
+  return {
+    frase, vehiculo: tp.tipo, confianza: tp.conf, senales: tp.senales,
+    fechaPrevia: r.fechaPrevia, antiguedad: r.antiguedad, recupero: r.recupero,
+    porque: k ? k[2] : 'Se clasifico por la calificacion', fragmento: frag ? frag.text : '', fragPos: frag ? [frag.s, frag.e] : null,
+    datos: vehiculoDatos(r.t, tp.tipo, anchor),
+  };
+}
+const API = { canonBrand, REVISAR, candidato, norm, classify, tipo, fixFrase, keySpan, sentence, vehiculoDatos, analizar };
+if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.Motor = API;
+})(typeof self !== 'undefined' ? self : this);
+
+</script>
+<script>
+(function(){
+'use strict';
+const $ = (s) => document.querySelector(s);
+const HERMES_COLS = ['patente','nro_registro','partido_hecho','localidad_hecho','condicion','marca','modelo','chasis','motor','fecha_inicio_hecho','hora_inicio_hecho','analisis_coordenadas','relato','analisis_caratula','analisis_modalidad','jurisdiccion'];
+const CONDS = [['Sustraido','Sustraído','1'],['Inmediato','Inmediato','2'],['Hallado','Hallado','3'],['No','No corresponde','0']];
+const LBL = {Sustraido:'Sustraído',Inmediato:'Inmediato',Hallado:'Hallado',No:'No corresponde'};
+const TABS = [['autos','Autos'],['revisar','A revisar'],['otros','Autopartes y objetos'],['motos','Motos'],['todo','Todo']];
+const S = { file:null, fileKey:'ejemplo', rows:[], cases:[], dec:{}, tab:'autos', cur:null, sample:true, op:'', parte:'0' };
+
+// ---------- storage (solo decisiones, nunca el crudo) ----------
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+let saveT=null;
+function persist(){ clearTimeout(saveT); saveT=setTimeout(()=>{ lsSet('hermes-dec:'+S.fileKey, JSON.stringify(S.dec)); },300); }
+function restore(){ try{ const v=lsGet('hermes-dec:'+S.fileKey); S.dec=v?JSON.parse(v):{}; }catch(e){ S.dec={}; } }
+S.op = lsGet('hermes-op') || '';
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,3200); }
+const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- grupos y sugerencia ----------
+function grupo(a){
+  if (a.revisar || a.confianza==='DUDOSO') return 'revisar';
+  if (a.vehiculo==='MOTO') return 'motos';
+  if (/ARTICULOS|AUTOPARTES|PATENTES/.test(a.frase)) return 'otros';
+  return 'autos';
+}
+function sugerencia(a){
+  const f=a.frase;
+  if (a.revisar) return null;
+  if (a.vehiculo==='MOTO') return 'No';
+  if (/ARTICULOS|AUTOPARTES|PATENTES/.test(f)) return 'No';
+  if (/RECUPERAD[OA] TRAS EL HECHO/.test(f)) return 'Inmediato';
+  if (/^HALLAZGO|^ENCUBRIMIENTO|NUMERACION/.test(f)) return 'Hallado';
+  if (/^SUSTRAJERON|^ROBO|^TENTATIVA/.test(f)) return 'Sustraido';
+  return null;
+}
+
+// ---------- fechas y formatos HERMES ----------
+const pad=(n)=>String(n).padStart(2,'0');
+function fDate(v){
+  if (v==null || v==='') return '';
+  if (v instanceof Date && !isNaN(v)) return v.getFullYear()+'-'+pad(v.getMonth()+1)+'-'+pad(v.getDate());
+  if (typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400000)); return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()); }
+  const s=String(v).trim(); let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return m[1]+'-'+pad(m[2])+'-'+pad(m[3]);
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+pad(m[2])+'-'+pad(m[1]);
+  return s;
+}
+function fTime(v){
+  if (v==null || v==='') return '';
+  if (v instanceof Date && !isNaN(v)) return pad(v.getHours())+':'+pad(v.getMinutes())+':'+pad(v.getSeconds());
+  if (typeof v==='number'){ const sec=Math.round((v%1)*86400); return pad(Math.floor(sec/3600))+':'+pad(Math.floor(sec/60)%60)+':'+pad(sec%60); }
+  const s=String(v).trim(); const m=s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m? pad(m[1])+':'+m[2]+':'+(m[3]||'00') : s;
+}
+// Provincia de Buenos Aires (con margen): lat -41.3 a -33.1, lon -63.5 a -56.6
+const inPBA=(a,b)=>a>=-41.3&&a<=-33.1&&b>=-63.5&&b<=-56.6;
+function checkCoord(la,lo){
+  // devuelve {txt, estado: 'ok'|'corregida'|'falta'|'invalida', nota}
+  if(la==null||lo==null||String(la).trim()===''||String(lo).trim()==='') return {txt:'',estado:'falta',nota:'El crudo no trae coordenadas'};
+  let a=Number(String(la).replace(',','.')), b=Number(String(lo).replace(',','.'));
+  if(!isFinite(a)||!isFinite(b)||a===0||b===0) return {txt:'',estado:'invalida',nota:'Coordenada vacía o en cero'};
+  if(inPBA(a,b)) return {txt:String(la).trim()+', '+String(lo).trim(),estado:'ok',nota:''};
+  const tries=[[-Math.abs(a),-Math.abs(b),'signo corregido'],[-Math.abs(b),-Math.abs(a),'latitud y longitud invertidas']];
+  for(const [x,y,n] of tries){ if(inPBA(x,y)) return {txt:x+', '+y,estado:'corregida',nota:'Corregida: '+n}; }
+  return {txt:'',estado:'invalida',nota:'Fuera de la Provincia ('+la+', '+lo+')'};
+}
+function parseCoordInput(v){
+  v=String(v||'').trim(); if(!v) return null;
+  let m=v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || v.match(/[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/) || v.match(/(-?\d{1,2}[.,]\d{3,})\s*[,; ]\s*(-?\d{1,2}[.,]\d{3,})/);
+  if(!m) return null;
+  const c=checkCoord(m[1].replace(',','.'),m[2].replace(',','.'));
+  return c.txt? c : null;
+}
+function coordOf(c){
+  const d=S.dec[c.id];
+  if(d && d.coord) return {txt:d.coord,estado:'operador',nota:'Cargada por el operador'};
+  return c.coord || (c.coord=checkCoord(c.row.latitud,c.row.longitud));
+}
+function coords(c){ return coordOf(c).txt; }
+function mapsUrl(r){
+  const dir=[r.calle, r.altura?String(r.altura).replace(/\.0$/,''):'', r.entre?'y '+r.entre:'', r.localidad_hecho, r.partido_hecho, 'Buenos Aires'].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(dir);
+}
+
+// ---------- carga ----------
+const EJEMPLOS=[
+ {delito_id:'E-1',nro_registro:'EJEMPLO-0001/2026',partido_hecho:'EJEMPLO',localidad_hecho:'EJEMPLO',dependencia:'CRIA. EJEMPLO 1RA',fecha_inicio_hecho:'2026-11-10',hora_inicio_hecho:'07:30:00',latitud:'',longitud:'',calificaciones:'Hurto agravado (vehículo dejado en la vía pública) - Art.163 inc.6º Consumado: Si',relato:'(Denuncia de ejemplo, no es real.) DENUNCIA: Que en el día de ayer dejó estacionado su vehículo marca Fiat modelo Cronos de color gris, dominio colocado AE123BC, chasis nro. 8AP359AFXKU000001, motor nro. 55282328000001 sobre la vía pública frente a su domicilio y en el día de la fecha constata que autores ignorados le sustrajeron el rodado.'},
+ {delito_id:'E-2',nro_registro:'EJEMPLO-0002/2026',partido_hecho:'EJEMPLO',localidad_hecho:'EJEMPLO',dependencia:'CRIA. EJEMPLO 2DA',fecha_inicio_hecho:'2026-11-09',hora_inicio_hecho:'03:10:00',latitud:'',longitud:'',calificaciones:'Hallazgo de automotor Consumado: Si',relato:'(Acta de ejemplo, no es real.) ACTA DE PROCEDIMIENTO: en recorrida visualizamos un vehículo marca Volkswagen modelo Gol Trend color blanco, dominio colocado AB-987-CD, sin ocupantes, el cual al ser cursado arroja pedido de secuestro activo con fecha de alta 02/11/2026 por robo automotor.'},
+ {delito_id:'E-3',nro_registro:'EJEMPLO-0003/2026',partido_hecho:'EJEMPLO',localidad_hecho:'EJEMPLO',dependencia:'CRIA. EJEMPLO 3RA',fecha_inicio_hecho:'2026-11-11',hora_inicio_hecho:'22:45:00',latitud:'',longitud:'',calificaciones:'Robo agravado (uso de armas de fuego) - Art.166 inc.2º párr. 2do Consumado: Si',relato:'(Denuncia de ejemplo, no es real.) DENUNCIA: Que circulaba a bordo de su camioneta marca Toyota modelo Hilux dominio AF456GH cuando dos masculinos mediante intimidación con arma de fuego lo obligan a descender de su camioneta, se suben a la misma y se dan a la fuga. Minutos después personal policial intercepta el rodado y es recuperado.'}
+];
+function buildCases(rows, onProgress, done){
+  const out=[]; let i=0; const N=rows.length;
+  function step(){
+    const t0=performance.now();
+    while(i<N && performance.now()-t0<40){
+      const r=rows[i++];
+      let a=null; try{ a=Motor.analizar(r); }catch(e){ a=null; }
+      if(a){ out.push({ id:String(r.delito_id), row:r, a, g:grupo(a), sug:sugerencia(a) }); }
+    }
+    onProgress(i,N);
+    if(i<N) setTimeout(step,0); else done(out);
+  }
+  step();
+}
+function setCases(cases){
+  cases.sort((x,y)=> (fDate(x.row.fecha_inicio_hecho||x.row.fecha_carga)+fTime(x.row.hora_inicio_hecho)).localeCompare(fDate(y.row.fecha_inicio_hecho||y.row.fecha_carga)+fTime(y.row.hora_inicio_hecho)) || x.id.localeCompare(y.id));
+  cases.forEach((c,k)=>c.k=k);
+  S.cases=cases; restore();
+  const frases=[...new Set(cases.map(c=>c.a.frase))].sort();
+  $('#f-frase').innerHTML='<option value="">Todas las frases</option>'+frases.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  S.cur=null; renderAll(); selectFirst();
+}
+async function loadCrudo(f){
+  if (typeof XLSX==='undefined'){ toast('No se pudo cargar el lector de Excel. Revisá la conexión y recargá la página.'); return; }
+  $('#loadbox').hidden=false; $('#pbar').style.width='3%'; $('#ptext').textContent='Leyendo '+f.name+'…';
+  try{
+    const buf=await f.arrayBuffer();
+    await new Promise(r=>setTimeout(r,30));
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
+    if(!rows.length || !('relato' in rows[0]) || !('calificaciones' in rows[0])){ $('#loadbox').hidden=true; toast('El archivo no parece un crudo de Cassandra: faltan las columnas relato y calificaciones.'); return; }
+    S.rows=rows; S.file=f.name; S.fileKey=f.name+'|'+rows.length; S.sample=false;
+    $('#ptext').textContent='Clasificando '+rows.length.toLocaleString('es-AR')+' hechos…';
+    buildCases(rows,(i,n)=>{ $('#pbar').style.width=Math.round(i/n*100)+'%'; $('#ptext').textContent='Clasificando '+i.toLocaleString('es-AR')+' de '+n.toLocaleString('es-AR')+' hechos…'; },(cases)=>{
+      $('#loadbox').hidden=true;
+      $('#fileinfo').textContent=f.name+' · '+rows.length.toLocaleString('es-AR')+' hechos · '+cases.length.toLocaleString('es-AR')+' con vehículo. El archivo se lee en esta computadora y no se sube a ningún lado.';
+      setCases(cases);
+    });
+  }catch(e){ $('#loadbox').hidden=true; toast('No se pudo leer el archivo: '+(e&&e.message||e)); }
+}
+$('#f-crudo').addEventListener('change',(ev)=>{ const f=ev.target.files[0]; ev.target.value=''; if(f) loadCrudo(f); });
+document.addEventListener('dragover',(ev)=>{ ev.preventDefault(); document.body.classList.add('drop'); });
+document.addEventListener('dragleave',(ev)=>{ if(!ev.relatedTarget) document.body.classList.remove('drop'); });
+document.addEventListener('drop',(ev)=>{ ev.preventDefault(); document.body.classList.remove('drop'); const f=[...(ev.dataTransfer&&ev.dataTransfer.files||[])].find(x=>/\.xlsx?$/i.test(x.name)); if(f) loadCrudo(f); else toast('Soltá un archivo .xlsx del crudo.'); });
+
+// ---------- filtros ----------
+function inParte(c){ if(S.parte==='0') return true; return (c.k%2)===(S.parte==='1'?0:1); }
+function estado(c){ const d=S.dec[c.id]; return d&&d.cond? d.cond : 'pend'; }
+function visible(){
+  const q=$('#q').value.trim().toLowerCase(), fe=$('#f-estado').value, ff=$('#f-frase').value;
+  return S.cases.filter(c=>{
+    if(!inParte(c)) return false;
+    if(S.tab!=='todo' && c.g!==S.tab) return false;
+    if(fe==='sincoord'){ if(coords(c)) return false; } else if(fe && estado(c)!==fe) return false;
+    if(ff && c.a.frase!==ff) return false;
+    if(q){ const d=dat(c); const h=(c.id+' '+d.patente+' '+(c.row.partido_hecho||'')+' '+(c.row.localidad_hecho||'')+' '+(c.row.nro_registro||'')+' '+d.marca+' '+d.modelo).toLowerCase(); if(!h.includes(q)) return false; }
+    return true;
+  });
+}
+function dat(c){ const d=S.dec[c.id]||{}; const x=c.a.datos; return { patente: d.patente!=null?d.patente:x.dominio, marca: d.marca!=null?d.marca:x.marca, modelo: d.modelo!=null?d.modelo:x.modelo, chasis: d.chasis!=null?d.chasis:x.chasis, motor: d.motor!=null?d.motor:x.motor, obs: d.obs||'' }; }
+
+// ---------- render ----------
+function renderStats(){
+  const base=S.cases.filter(inParte); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
+  base.forEach(c=>cnt[estado(c)]++);
+  const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
+  const sinC=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && !coords(c);}).length;
+  $('#stats').innerHTML=(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes · ${autosPend} autos</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
+}
+function renderTabs(){
+  const base=S.cases.filter(inParte);
+  $('#tabs').innerHTML=TABS.map(([k,l])=>{ const n=k==='todo'?base.length:base.filter(c=>c.g===k).length; return `<button class="tab" role="tab" type="button" data-tab="${k}" aria-selected="${S.tab===k}">${l}<b>${n}</b></button>`; }).join('');
+}
+function renderList(){
+  const v=visible(); const L=$('#list');
+  if(!v.length){ L.innerHTML='<div class="empty">No hay denuncias con estos filtros.</div>'; return; }
+  const max=600; const part=v.slice(0,max);
+  L.innerHTML=part.map(c=>{ const e=estado(c), d=dat(c);
+    return `<button type="button" class="item s-${e}" data-id="${esc(c.id)}" aria-current="${S.cur===c.id}"><span class="stripe"></span><span style="min-width:0"><span class="t">${esc(c.a.frase)}</span><span class="m">${esc(c.id)} · ${esc(c.row.partido_hecho||'')} · ${esc(fDate(c.row.fecha_inicio_hecho||c.row.fecha_carga))}</span></span><span>${d.patente?`<span class="mini-plate">${esc(d.patente)}</span>`:''}</span></button>`; }).join('') + (v.length>max?`<div class="empty">Se muestran ${max} de ${v.length}. Usá la búsqueda o los filtros para ver el resto.</div>`:'');
+}
+function hiText(orig, a){
+  // mapea el texto normalizado al original para resaltar sin perder acentos
+  const map=[]; let n=''; let prevSp=false;
+  for(let i=0;i<orig.length;i++){
+    const ch=orig[i];
+    if(/\s/.test(ch)){ if(!prevSp){ n+=' '; map.push(i); } prevSp=true; continue; }
+    prevSp=false;
+    const k=ch.normalize('NFKD').replace(/[^\x00-\x7F]/g,'').toLowerCase();
+    for(let j=0;j<k.length;j++){ n+=k[j]; map.push(i); }
+  }
+  const spans=[];
+  if(a.fragPos){ spans.push([a.fragPos[0],a.fragPos[1],'']); }
+  const pl=(a.datos&&a.datos.dominio)||'';
+  if(pl.length>=6){
+    const rx=new RegExp(pl.toLowerCase().split('').join('[ -]?'),'g'); let m;
+    while((m=rx.exec(n))!==null){ spans.push([m.index,m.index+m[0].length,'p']); }
+  }
+  spans.sort((x,y)=>x[0]-y[0]);
+  let out='', last=0;
+  for(const [s,e,cl] of spans){
+    const os=map[s]; const oe=(e<map.length? map[e] : orig.length);
+    if(os==null || os<last) continue;
+    out+=esc(orig.slice(last,os))+`<mark${cl?' class="p"':''}${cl?'':' id="kmark"'}>`+esc(orig.slice(os,oe))+'</mark>'; last=oe;
+  }
+  return out+esc(orig.slice(last));
+}
+function renderDetail(){
+  const D=$('#detail'); const c=S.cases.find(x=>x.id===S.cur);
+  if(!c){ D.innerHTML='<div class="empty">Elegí una denuncia de la lista.</div>'; return; }
+  const a=c.a, r=c.row, d=dat(c), e=estado(c), dec=S.dec[c.id]||{}; const co=coordOf(c);
+  const sen=a.senales.map(([k,v,x])=>`<span><b>${esc(k)}</b>: ${esc(v)}${x?` (${esc(x)})`:''}</span>`).join(' · ');
+  D.innerHTML=`
+  <div class="dhead">
+    <div class="row">${S.sample?'<span class="sample-tag">Ejemplo</span>':''}<span class="frase">${esc(a.frase)}</span></div>
+    <div class="meta"><span>Id <b>${esc(c.id)}</b></span><span>Registro <b>${esc(r.nro_registro||'')}</b></span><span><b>${esc(fDate(r.fecha_inicio_hecho||r.fecha_carga))}</b> ${esc(fTime(r.hora_inicio_hecho))}</span><span><b>${esc(r.partido_hecho||'')}</b> · ${esc(r.localidad_hecho||'')}</span><span>${esc(r.dependencia||'')}</span></div>
+    <div class="meta"><span>${esc(r.calificaciones||'')}</span></div>
+    <div class="meta"><span>Vehículo <b>${esc(a.vehiculo)}</b> (confianza ${esc(a.confianza)})</span>${a.antiguedad?`<span>Sustracción previa <b>${esc(a.antiguedad)}</b>${a.fechaPrevia?' · '+esc(a.fechaPrevia):''}</span>`:''}${a.recupero?`<span>Menciona recupero <b>${esc(a.recupero)}</b></span>`:''}</div>
+  </div>
+  <div class="sect">
+    <h2>Condición para HERMES</h2>
+    <div class="cond" role="group" aria-label="Condición">${CONDS.map(([k,l,key])=>`<button type="button" class="cbtn${c.sug===k&&!dec.cond?' sug':''}" data-c="${k}" aria-pressed="${dec.cond===k}">${l}<kbd>${key}</kbd></button>`).join('')}</div>
+    <div class="sugline">${c.sug?`Sugerencia: <b>${LBL[c.sug]}</b>${dec.cond?'':' (sin confirmar)'} · `:''}${esc(a.porque)}</div>
+  </div>
+  <div class="sect">
+    <h2>Datos del vehículo</h2>
+    <div class="grid">
+      <label class="field" for="v-patente"><span>Patente</span><input id="v-patente" class="plate-in" value="${esc(d.patente)}" maxlength="9" autocomplete="off"></label>
+      <label class="field" for="v-marca"><span>Marca</span><input id="v-marca" value="${esc(d.marca)}" list="marcas" autocomplete="off"></label>
+      <label class="field" for="v-modelo"><span>Modelo</span><input id="v-modelo" class="mono" value="${esc(d.modelo)}" autocomplete="off"></label>
+      <label class="field" for="v-chasis"><span>Chasis</span><input id="v-chasis" class="mono" value="${esc(d.chasis)}" autocomplete="off"></label>
+      <label class="field" for="v-motor"><span>Motor</span><input id="v-motor" class="mono" value="${esc(d.motor)}" autocomplete="off"></label>
+      <label class="field" for="v-obs"><span>Observación</span><input id="v-obs" value="${esc(d.obs)}" autocomplete="off"></label>
+      <label class="field wide" for="v-coord"><span>Coordenadas (lat, lon) · <em class="cst cst-${co.estado}">${esc({ok:'del crudo',corregida:'corregida',operador:'cargada a mano',falta:'falta',invalida:'inválida'}[co.estado])}</em>${co.nota?' · '+esc(co.nota):''}</span>
+        <span class="coordrow"><input id="v-coord" style="font-family:var(--f-mono)" value="${esc(co.txt)}" placeholder="Pegá acá: -34.6037, -58.3816 o el link de Google Maps" autocomplete="off"><a class="btn" href="${esc(mapsUrl(r))}" target="_blank" rel="noopener">Buscar dirección en Maps</a></span>
+        <span class="help">Dirección del crudo: ${esc([r.calle,r.altura?String(r.altura).replace(/\.0$/,''):'',r.entre?'e/ '+r.entre:'',r.localidad_hecho].filter(Boolean).join(' ')||'sin dirección')}. En Maps: clic derecho sobre el punto, clic en los números para copiarlos, y pegalos acá.</span></label>
+    </div>
+    <div class="navrow"><button class="btn primary" type="button" id="b-next">Confirmar y siguiente</button><button class="btn" type="button" id="b-prev">Anterior</button>
+      <span class="help"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>0</kbd> condición · <kbd>Enter</kbd> confirmar · <kbd>↑</kbd><kbd>↓</kbd> moverse${dec.op?` · cargó ${esc(dec.op)}`:''}</span></div>
+  </div>
+  <div class="sect">
+    <h2>Lo que detectó el motor</h2>
+    <div class="frag"><span class="why">${esc(a.porque)}</span>${esc(a.fragmento||'Sin frase textual: se clasificó por la calificación.')}</div>
+    <div class="senal">${sen}</div>
+  </div>
+  <div class="sect"><h2>Relato completo</h2><div class="relato">${hiText(String(r.relato||''),a)}</div></div>`;
+  const k=document.getElementById('kmark'); if(k && D.scrollTop===0){ /* deja el foco arriba */ }
+}
+function renderAll(){ renderStats(); renderTabs(); renderList(); renderDetail(); }
+function selectFirst(){ const v=visible(); const p=v.find(c=>estado(c)==='pend')||v[0]; S.cur=p?p.id:null; renderList(); renderDetail(); }
+
+// ---------- decisiones ----------
+function saveFields(){
+  const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
+  const g=(id)=>{ const el=document.getElementById(id); return el? el.value : null; };
+  const dec=S.dec[c.id]||{};
+  const p=g('v-patente'); if(p!=null) dec.patente=p.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  ['marca','modelo','chasis','motor','obs'].forEach(k=>{ const v=g('v-'+k); if(v!=null) dec[k]= k==='marca'||k==='obs'? v.trim() : v.trim().toUpperCase(); });
+  const cv=g('v-coord');
+  if(cv!=null){ const base=checkCoord(c.row.latitud,c.row.longitud).txt; const t=cv.trim();
+    if(!t){ delete dec.coord; } else if(t!==base){ const pc=parseCoordInput(t); if(pc){ dec.coord=pc.txt; } else { toast('No entendí la coordenada. Pegá algo como -34.6037, -58.3816.'); } } else { delete dec.coord; } }
+  dec.ts=Date.now(); S.dec[c.id]=dec; persist();
+}
+function setCond(k){
+  const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
+  saveFields(); const dec=S.dec[c.id]; dec.cond=k; dec.op=S.op||dec.op||''; dec.ts=Date.now(); persist();
+  renderStats(); renderTabs(); renderList(); renderDetail();
+}
+function move(dir){
+  saveFields(); const v=visible(); let i=v.findIndex(c=>c.id===S.cur);
+  i=Math.max(0,Math.min(v.length-1,i+dir)); if(v[i]){ S.cur=v[i].id; renderList(); renderDetail(); scrollCur(); }
+}
+function confirmNext(){
+  const c=S.cases.find(x=>x.id===S.cur); if(!c) return;
+  const dec=S.dec[c.id]||{};
+  if(!dec.cond){ if(c.sug){ setCond(c.sug); } else { toast('Elegí la condición antes de seguir (1, 2, 3 o 0).'); return; } }
+  else saveFields();
+  const v=visible(); const i=v.findIndex(x=>x.id===S.cur);
+  const nxt=v.slice(i+1).find(x=>estado(x)==='pend')||v[i+1];
+  if(nxt){ S.cur=nxt.id; } renderStats(); renderTabs(); renderList(); renderDetail(); scrollCur();
+}
+function scrollCur(){ const el=document.querySelector('.item[aria-current="true"]'); if(el) el.scrollIntoView({block:'nearest'}); const D=$('#detail'); D.scrollTop=0; }
+
+document.addEventListener('click',(ev)=>{
+  const it=ev.target.closest('.item'); if(it){ saveFields(); S.cur=it.dataset.id; renderList(); renderDetail(); $('#detail').scrollTop=0; return; }
+  const tb=ev.target.closest('.tab'); if(tb){ saveFields(); S.tab=tb.dataset.tab; renderTabs(); renderList(); selectFirst(); return; }
+  const cb=ev.target.closest('.cbtn'); if(cb){ setCond(cb.dataset.c); return; }
+  if(ev.target.id==='b-next'){ confirmNext(); return; }
+  if(ev.target.id==='b-sincoord'){ S.tab='todo'; $('#f-estado').value='sincoord'; renderTabs(); renderList(); selectFirst(); return; }
+  if(ev.target.id==='b-prev'){ move(-1); return; }
+});
+document.addEventListener('change',(ev)=>{ if(ev.target.closest('#detail') && ev.target.id.startsWith('v-')) { saveFields(); renderList(); if(ev.target.id==='v-coord'){ renderStats(); renderDetail(); } } });
+document.addEventListener('paste',(ev)=>{ if(ev.target && ev.target.id==='v-coord'){ setTimeout(()=>{ saveFields(); renderStats(); renderDetail(); const el=document.getElementById('v-coord'); if(el) el.focus(); },0); } });
+document.addEventListener('keydown',(ev)=>{
+  const inField=/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
+  if(ev.key==='Enter' && (inField? document.activeElement.closest('#detail') : true)){ if(document.activeElement && document.activeElement.classList.contains('item')) return; ev.preventDefault(); confirmNext(); return; }
+  if(inField) return;
+  const m={'1':'Sustraido','2':'Inmediato','3':'Hallado','0':'No'}[ev.key];
+  if(m){ ev.preventDefault(); setCond(m); return; }
+  if(ev.key==='ArrowDown'||ev.key==='j'){ ev.preventDefault(); move(1); }
+  if(ev.key==='ArrowUp'||ev.key==='k'){ ev.preventDefault(); move(-1); }
+});
+['q','f-estado','f-frase'].forEach(id=>$('#'+id).addEventListener('input',()=>{ renderList(); }));
+$('#i-op').value=S.op; $('#i-op').addEventListener('input',(e)=>{ S.op=e.target.value.trim(); lsSet('hermes-op',S.op); });
+$('#s-parte').addEventListener('change',(e)=>{ S.parte=e.target.value; renderAll(); selectFirst(); });
+
+// ---------- descargas ----------
+let DL=null;
+(async()=>{ try{ if(window.claude && claude.use){ DL=await claude.use('downloads'); } }catch(e){ DL=null; } })();
+async function save(filename,data){
+  if(!DL){
+    if(!window.claude){ try{ const blob=data instanceof Blob?data:new Blob([data]); const u=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),4000); toast('Listo: '+filename); return true; }catch(e){} }
+    toast('La descarga no está disponible en esta vista.'); return false; }
+  try{ await DL.save({filename,data}); toast('Listo: '+filename); return true; }
+  catch(e){ const c=e&&e.code; if(c==='declined') toast('Descarga cancelada.'); else if(c==='rate_limited') toast('Ya hay una descarga esperando confirmación.'); else toast('No se pudo descargar ('+(c||'error')+').'); return false; }
+}
+function baseName(){ return (S.file||'Ejemplo').replace(/\.xlsx?$/i,''); }
+$('#b-hermes').addEventListener('click', async ()=>{
+  saveFields();
+  if(typeof XLSX==='undefined'){ toast('No se pudo cargar el generador de Excel. Recargá la página.'); return; }
+  const sel=S.cases.filter(c=>{ const e=estado(c); return e==='Sustraido'||e==='Inmediato'||e==='Hallado'; });
+  if(!sel.length){ toast('Todavía no hay denuncias clasificadas como Sustraído, Inmediato o Hallado.'); return; }
+  const rows=sel.map(c=>{ const r=c.row, d=dat(c); return {
+    patente:d.patente||'', nro_registro:r.nro_registro||'', partido_hecho:r.partido_hecho||'', localidad_hecho:r.localidad_hecho||'',
+    condicion:estado(c), marca:d.marca||'', modelo:(d.modelo||'').toUpperCase(), chasis:d.chasis||'', motor:d.motor||'',
+    fecha_inicio_hecho:fDate(r.fecha_inicio_hecho||r.fecha_carga), hora_inicio_hecho:fTime(r.hora_inicio_hecho), analisis_coordenadas:coords(c),
+    relato:String(r.relato||''), analisis_caratula:r.calificaciones||'', analisis_modalidad:'', jurisdiccion:r.dependencia||'' }; });
+  rows.sort((x,y)=>(x.fecha_inicio_hecho+x.hora_inicio_hecho).localeCompare(y.fecha_inicio_hecho+y.hora_inicio_hecho));
+  const sinPat=rows.filter(r=>!r.patente).length; const sinCo=rows.filter(r=>!r.analisis_coordenadas).length;
+  const ws=XLSX.utils.json_to_sheet(rows,{header:HERMES_COLS});
+  ws['!cols']=HERMES_COLS.map(()=>({wch:13}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Autos');
+  const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const ok=await save(baseName()+' - HERMES.xlsx', new Blob([out]));
+  if(ok && (sinPat||sinCo)) setTimeout(()=>toast(rows.length+' autos exportados'+(sinPat?'; '+sinPat+' sin patente':'')+(sinCo?'; '+sinCo+' sin coordenada':'')+'.'),3300);
+});
+$('#b-avance').addEventListener('click', async ()=>{
+  saveFields();
+  const n=Object.values(S.dec).filter(d=>d.cond).length;
+  const data=JSON.stringify({tipo:'avance-hermes',version:1,archivo:S.file,clave:S.fileKey,operador:S.op,guardado:new Date().toISOString(),decisiones:S.dec});
+  await save(baseName()+' - avance '+(S.op||'operador')+'.json', data);
+  if(!n) toast('Se guardó el avance (todavía sin denuncias clasificadas).');
+});
+$('#f-avance').addEventListener('change', async (ev)=>{
+  const files=[...ev.target.files]; ev.target.value=''; let added=0, bad=0, otro=0;
+  for(const f of files){
+    try{ const j=JSON.parse(await f.text()); if(j.tipo!=='avance-hermes'||!j.decisiones){ bad++; continue; }
+      if(j.clave && j.clave!==S.fileKey) otro++;
+      for(const [id,d] of Object.entries(j.decisiones)){ const cur=S.dec[id]; if(!cur || (d.ts||0)>(cur.ts||0)){ S.dec[id]=d; added++; } }
+    }catch(e){ bad++; }
+  }
+  persist(); renderAll();
+  toast(added+' decisiones unidas'+(otro?' · ojo: '+otro+' archivo(s) de otro crudo':'')+(bad?' · '+bad+' archivo(s) no válidos':''));
+});
+
+// ---------- arranque con ejemplos ----------
+buildCases(EJEMPLOS,()=>{},(cases)=>{ S.fileKey='ejemplo'; setCases(cases); });
+})();
+</script>
+
+</body>
+</html>
