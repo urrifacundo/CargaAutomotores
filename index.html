@@ -157,6 +157,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <div class="brand">
       <h1>Carga HERMES Automotores</h1>
       <small id="fileinfo">Cargá o arrastrá acá el crudo de Cassandra. Mientras tanto se ven 3 denuncias de ejemplo.</small>
+      <small><button type="button" class="linkbtn" id="b-quitar" hidden>Quitar el crudo de esta computadora</button></small>
     </div>
     <div class="actions">
       <label class="btn primary file" for="f-crudo">Cargar crudo (.xlsx)<input type="file" id="f-crudo" accept=".xlsx,.xls"></label>
@@ -174,6 +175,7 @@ body.drop .wrap{outline:3px dashed var(--accent);outline-offset:-8px;border-radi
     <button class="btn small" id="b-recuperar" type="button" hidden>Recuperar lo borrado</button>
     <button class="btn danger small" id="b-borrar" type="button" hidden>Borrar todo</button>
     <div class="dlg" id="dlg-clave" hidden style="flex-basis:100%"><b>Clave para descargar HERMES</b><span class="coordrow"><input id="i-clave" type="password" autocomplete="off" placeholder="Clave" style="flex:0 1 220px"><button class="btn primary" id="b-clave-ok" type="button">Descargar</button><button class="btn" id="b-clave-no" type="button">Cancelar</button></span><span class="help" id="clave-err" hidden style="color:var(--sus)">Clave incorrecta.</span></div>
+    <div class="dlg" id="dlg-quitar" hidden style="flex-basis:100%"><b>¿Quitar la copia del crudo de esta computadora?</b><span class="help">La próxima vez vas a tener que cargar el archivo de nuevo. Tu avance no se borra.</span><span class="warn-b"><button class="btn" id="b-quitar-ok" type="button">Sí, quitar</button><button class="btn" id="b-quitar-no" type="button">Cancelar</button></span></div>
     <div class="dlg" id="dlg-borrar" hidden style="flex-basis:100%"><b>¿Borrar todo el avance de este crudo en esta computadora?</b><span class="help">Se pierden las clasificaciones y correcciones cargadas acá y se desbloquea la parte. Si querés conservarlas, tocá antes "Guardar avance". No se puede deshacer.</span><span class="warn-b"><button class="btn danger" id="b-borrar-ok" type="button">Sí, borrar todo</button><button class="btn" id="b-borrar-no" type="button">Cancelar</button></span></div>
     <div class="stats" id="stats"></div>
     <div style="flex-basis:100%" id="loadbox" hidden><div class="progress"><i id="pbar"></i></div><div class="help" id="ptext"></div></div>
@@ -892,6 +894,21 @@ function setCases(cases){
   $('#f-frase').innerHTML='<option value="">Todas las frases</option>'+frases.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('');
   S.cur=null; renderAll(); selectFirst();
 }
+// ---------- copia del crudo en este navegador (IndexedDB): solo las denuncias con vehiculo ----------
+const KEEP=['delito_id','nro_registro','partido_hecho','localidad_hecho','dependencia','fecha_inicio_hecho','hora_inicio_hecho','fecha_carga','hora_carga','latitud','longitud','calle','altura','entre','calificaciones','relato'];
+function idb(){ return new Promise((res,rej)=>{ try{ const r=indexedDB.open('carga-hermes',1); r.onupgradeneeded=()=>r.result.createObjectStore('crudo'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }catch(e){ rej(e); } }); }
+async function idbPut(v){ try{ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction('crudo','readwrite'); tx.objectStore('crudo').put(v,'ultimo'); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); db.close(); return true; }catch(e){ return false; } }
+async function idbGet(){ try{ const db=await idb(); const v=await new Promise((res,rej)=>{ const q=db.transaction('crudo').objectStore('crudo').get('ultimo'); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); db.close(); return v||null; }catch(e){ return null; } }
+async function idbDel(){ try{ const db=await idb(); await new Promise((res)=>{ const tx=db.transaction('crudo','readwrite'); tx.objectStore('crudo').delete('ultimo'); tx.oncomplete=res; tx.onerror=res; }); db.close(); }catch(e){} }
+function infoText(name,total,ncases,guardado){ return name+' · '+Number(total).toLocaleString('es-AR')+' hechos · '+ncases.toLocaleString('es-AR')+' con vehículo'+(guardado?' · abierto desde esta computadora':'')+'. No se sube a ningún lado.'; }
+async function abrirGuardado(){
+  const v=await idbGet(); if(!v || !v.rows || !v.rows.length) return false;
+  $('#loadbox').hidden=false; $('#pbar').style.width='5%'; $('#ptext').textContent='Abriendo '+v.name+'…';
+  S.file=v.name; S.fileKey=v.key; S.sample=false;
+  await new Promise(done=>buildCases(v.rows,(i,n)=>{ $('#pbar').style.width=Math.round(i/n*100)+'%'; },(cases)=>{
+    $('#loadbox').hidden=true; $('#fileinfo').textContent=infoText(v.name,v.total,cases.length,true); $('#b-quitar').hidden=false; setCases(cases); done(); }));
+  return true;
+}
 async function loadCrudo(f){
   if (typeof XLSX==='undefined'){ toast('No se pudo cargar el lector de Excel. Revisá la conexión y recargá la página.'); return; }
   $('#loadbox').hidden=false; $('#pbar').style.width='3%'; $('#ptext').textContent='Leyendo '+f.name+'…';
@@ -906,8 +923,10 @@ async function loadCrudo(f){
     $('#ptext').textContent='Clasificando '+rows.length.toLocaleString('es-AR')+' hechos…';
     buildCases(rows,(i,n)=>{ $('#pbar').style.width=Math.round(i/n*100)+'%'; $('#ptext').textContent='Clasificando '+i.toLocaleString('es-AR')+' de '+n.toLocaleString('es-AR')+' hechos…'; },(cases)=>{
       $('#loadbox').hidden=true;
-      $('#fileinfo').textContent=f.name+' · '+rows.length.toLocaleString('es-AR')+' hechos · '+cases.length.toLocaleString('es-AR')+' con vehículo. El archivo se lee en esta computadora y no se sube a ningún lado.';
+      $('#fileinfo').textContent=infoText(f.name,rows.length,cases.length,false);
       setCases(cases);
+      const keep=cases.map(c=>{ const o={}; for(const k of KEEP) if(k in c.row) o[k]=c.row[k]; return o; });
+      idbPut({name:f.name,key:S.fileKey,total:rows.length,guardado:new Date().toISOString(),rows:keep}).then(ok=>{ $('#b-quitar').hidden=!ok; if(ok) toast('Crudo guardado en esta computadora: la próxima vez se abre solo.'); });
     });
   }catch(e){ $('#loadbox').hidden=true; toast('No se pudo leer el archivo: '+(e&&e.message||e)); }
 }
@@ -1197,7 +1216,10 @@ $('#f-avance').addEventListener('change', async (ev)=>{
 });
 
 // ---------- arranque con ejemplos ----------
-buildCases(EJEMPLOS,()=>{},(cases)=>{ S.fileKey='ejemplo'; setCases(cases); });
+(async()=>{ const ok=await abrirGuardado(); if(!ok) buildCases(EJEMPLOS,()=>{},(cases)=>{ S.fileKey='ejemplo'; setCases(cases); }); })();
+$('#b-quitar').addEventListener('click',()=>{ $('#dlg-quitar').hidden=false; });
+$('#b-quitar-no').addEventListener('click',()=>{ $('#dlg-quitar').hidden=true; });
+$('#b-quitar-ok').addEventListener('click',async()=>{ flush(); await idbDel(); $('#dlg-quitar').hidden=true; $('#b-quitar').hidden=true; toast('Se quitó la copia del crudo. El avance queda guardado: si volvés a cargar el mismo crudo, sigue donde estaba.'); });
 })();
 </script>
 
