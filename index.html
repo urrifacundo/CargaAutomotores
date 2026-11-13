@@ -500,6 +500,7 @@ function marcas(t) {
   return out;
 }
 const uniq = (a) => [...new Set(a)];
+const PLATE_KW2 = G('(?:dominio|patente|chapa patente|chapa|placa)s?(?: colocad[oa]s?| original| n[or]?\\.?| nro\\.?| numero| n\\.?o| registral)*[:\\s]{1,3}([a-z]{2}[ -]?\\d{3}[ -]?[a-z]{2}|[a-z][ -]?\\d{3}[ -]?[a-z]{3}|[a-z]{3}[ -]?\\d{3}|\\d{3}[ -]?[a-z]{3})\\b');
 function tipo(t, cal, vehRelato) {
   const sig = [];
   const F = feet(t).filter(f => !f.vinculo.startsWith('utilizado'));
@@ -516,8 +517,29 @@ function tipo(t, cal, vehRelato) {
     const tm = mk.filter(x => x[0] === 'MOTO').length, ta = mk.length - tm;
     sig.push(['MARCA/MODELO', tm > ta ? 'MOTO' : ta > tm ? 'AUTOMOTOR' : 'MIXTO', uniq(mk.map(x => x[1])).join('; ').slice(0, 60)]);
   }
+  // patentes escritas con guion (hfj-825) y marcas sin la palabra "marca" (a bordo del vehiculo ford ecosport)
+  if (!sig.some(x => x[0] === 'PATENTE')) {
+    const ps = uniq([...iter(PLATE_KW2, t)].map(m => m[1].replace(/[ -]/g, '').toUpperCase()).filter(p => /^(?:[A-Z]{2}\d{3}[A-Z]{2}|[A-Z]{3}\d{3}|[A-Z]\d{3}[A-Z]{3}|\d{3}[A-Z]{3})$/.test(p)));
+    const pm = ps.filter(p => /^(?:[A-Z]\d{3}[A-Z]{3}|\d{3}[A-Z]{3})$/.test(p)).length, pa = ps.length - pm;
+    if (pm && !pa) sig.push(['PATENTE', 'MOTO', 'formato de moto: ' + ps.join(', ').slice(0, 40)]);
+    else if (pa && !pm) sig.push(['PATENTE', 'AUTOMOTOR', 'formato de auto: ' + ps.join(', ').slice(0, 40)]);
+  }
+  if (!sig.some(x => x[0] === 'MARCA/MODELO')) {
+    const bm = R('\\b(?:vehiculo|automovil|rodado|camioneta|auto|utilitario|furgon|camion)(?: (?:de )?(?:la )?marca)?[:,]? (fiat|renault|peugeot|chevrolet|ford|volkswagen|vw|toyota|citroen|nissan|jeep|kia|hyundai|chery|mercedes(?: benz)?|audi|dodge|ram|iveco|scania|bmw|mitsubishi|subaru|alfa romeo|chrysler|geely|baic|haval|jac|dfsk|isuzu|lada|volvo)\\b').exec(t);
+    if (bm) sig.push(['MARCA/MODELO', 'AUTOMOTOR', bm[1]]);
+  }
+  {
+    const vins = [...iter(/(?:chasis|cuadro)(?: n[o°ro]?\.?| nro\.?| numero| n\.?o)?[:\s]{1,3}([a-z0-9]{17})\b/g, t)].map(m => m[1].toUpperCase());
+    if (vins.length) {
+      const motoW = /^(?:8CH|8C6|8CV|8EL|9C2|9C6|LBP|LC6|LXY|LAE|LZS|LWB|LF3|LKX|ME1|MD2|JYA|JH2|JKA|VBK|ZD4|8BG|8CF|8DG|8AK1)/;
+      const autoW = /^(?:9BF|VF3|VF7|VF1|8AP|9BW|8A1|93Y|9BG|8AG|9BR|8AJ|935|9BD|8AF|8AW|8AC|8AD|8AT|3N1|94D|KNA|KNE|KMH|WDB|WDD|WVW|WV1|WV2|8AN|9BH|93H|LGW|LVV|JTD|JTE|MR0|MHF|8AS|9FB|9VC|MA3|LJ1|8A4|9BM|3FA|1FA|3VW|8AB|9BS|93W|9V8)/;
+      const vm = vins.filter(v => motoW.test(v)).length, va = vins.filter(v => autoW.test(v)).length;
+      if (vm && !va) sig.push(['CHASIS', 'MOTO', 'fabricante de motos: ' + vins[0]]);
+      else if (va && !vm) sig.push(['CHASIS', 'AUTOMOTOR', 'fabricante de autos: ' + vins[0]]);
+    }
+  }
   sig.push(['PALABRAS DEL RELATO', vehRelato, 'lectura del relato']);
-  const w = { 'FICHA AL PIE': 3, 'CALIFICACION': 2, 'MARCA/MODELO': 2, 'PATENTE': 1.5, 'PALABRAS DEL RELATO': 1 };
+  const w = { 'FICHA AL PIE': 3, 'CALIFICACION': 2, 'MARCA/MODELO': 2, 'CHASIS': 2, 'PATENTE': 1.5, 'PALABRAS DEL RELATO': 1 };
   const s = { MOTO: 0, AUTOMOTOR: 0 };
   for (const [k, v] of sig) if (v in s) s[v] += w[k];
   const tp = s.MOTO > s.AUTOMOTOR ? 'MOTO' : 'AUTOMOTOR';
@@ -889,11 +911,11 @@ function updBorrar(){
 }
 function renderStats(){ updBorrar(); updRecuperar();
   const base=S.cases.filter(c=>inParte(c)&&c.g!=='dup'); const cnt={Sustraido:0,Inmediato:0,Hallado:0,No:0,pend:0};
-  base.forEach(c=>cnt[estado(c)]++);
+  base.forEach(c=>{ const e=estado(c); if(e==='pend' && c.g!=='autos' && c.g!=='revisar') return; cnt[e]++; });
   const autosPend=base.filter(c=>c.g==='autos'&&estado(c)==='pend').length;
   const sinC=base.filter(c=>{const e=estado(c); return (e==='Sustraido'||e==='Inmediato'||e==='Hallado') && !coords(c);}).length;
   const pdif=base.filter(pendDif).length, ndif=base.filter(distinta).length;
-  $('#stats').innerHTML=(pdif?`<button type="button" class="chip c-warn" id="b-pdif">${pdif} cambios sin confirmar</button>`:'')+(ndif?`<button type="button" class="chip c-pend" id="b-dif">${ndif} distintas a la sugerencia</button>`:'')+(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes · ${autosPend} autos</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
+  $('#stats').innerHTML=(pdif?`<button type="button" class="chip c-warn" id="b-pdif">${pdif} cambios sin confirmar</button>`:'')+(ndif?`<button type="button" class="chip c-pend" id="b-dif">${ndif} distintas a la sugerencia</button>`:'')+(sinC?`<button type="button" class="chip c-warn" id="b-sincoord">${sinC} sin coordenada</button>`:'')+`<span class="chip c-pend">${cnt.pend} pendientes (Autos y A revisar)</span><span class="chip c-sus">${cnt.Sustraido} sustraídos</span><span class="chip c-inm">${cnt.Inmediato} inmediatos</span><span class="chip c-hal">${cnt.Hallado} hallados</span><span class="chip c-no">${cnt.No} no corresponde</span>`;
 }
 function renderTabs(){
   const base=S.cases.filter(inParte);
